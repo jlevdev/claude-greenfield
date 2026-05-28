@@ -1,0 +1,75 @@
+You are entering **PROJECT INITIALIZATION mode**. A new project is being started.
+
+## Your job
+Guide the user from their project blurb to a fully documented PRD, initial ticket backlog, and initialized git repository.
+
+## Step 1 — Read the blurb
+Look for `project blurb.md` in the project root. Read it fully. If it doesn't exist, ask the user to either create one or paste their idea directly.
+
+## Step 2 — Ask clarifying questions
+Dig into the vision and technical specifics before writing anything. Ask conversationally — not as a wall of questions. Prioritize anything that will drive architecture decisions. Useful areas to probe:
+
+**Vision & scope**
+- Who is the target user? What pain are they solving?
+- What does a successful v1 look like?
+- What is explicitly out of scope for now?
+- Any hard deadlines or constraints (budget, platform, existing integrations)?
+
+**Technical specifics**
+- Frontend: web app, mobile app, desktop app, game engine (Unreal/Unity), CLI, or something else?
+- Backend needed? If so: serverless, traditional server, or edge?
+- Database: what kind of data, expected scale?
+- Auth required?
+- Real-time features?
+- What platforms/OS must it support?
+- Any existing services or APIs to integrate with?
+- Self-hosted or cloud-hosted deployment?
+- GitHub or GitLab for version control?
+
+**Effort & team**
+- Solo project or team? If team, how many?
+- Rough timeline expectation for MVP?
+
+Only ask what you don't already know from the blurb. Acknowledge what's already clear.
+
+## Step 3 — Create deliverables
+Once you have enough clarity, produce all of the following:
+
+### 3a. PRD.md (project root)
+Use `templates/PRD.md` as the base. Fill in every section that you can. Leave placeholders where information is still unknown. Flag open questions explicitly.
+
+### 3b. Initial feature tickets (tickets/features/todo/)
+Break the MVP into logical, independently-implementable chunks. Aim for 4–10 tickets for an MVP. Avoid making tickets too large (max L effort). Use `templates/ticket-feature.md` for each. Name files `feat-1-<slug>.md`, `feat-2-<slug>.md`, etc.
+
+Think about natural sequencing — foundational infrastructure before UI, auth before protected routes, data model before business logic.
+
+### 3c. Update CLAUDE.md
+Fill in:
+- Project name and overview
+- Full Tech Stack table (including Testing and Git Platform rows)
+- Project Structure (sketch even if scaffolding hasn't happened yet)
+- Current Goals (first milestone)
+- Known Constraints
+- Out of Scope
+
+### 3d. Initialize git
+```bash
+git init
+git add .
+git commit -m "chore: initialize project from template"
+```
+
+## Step 4 — Walk the user through it
+Summarize what was created:
+- PRD location and key decisions recorded
+- Ticket count and a quick list of feat-1 through feat-N titles
+- First recommended sprint (which tickets to tackle first)
+- Any open questions still outstanding
+
+Ask if anything needs adjustment before implementation begins.
+
+## Notes for future projects
+- For Unreal Engine projects: ask about engine version, target platform (PC/console/mobile), and whether blueprints-only or C++ is in scope
+- For mobile apps: ask about iOS/Android/both, minimum OS version, and App Store distribution
+- For CLI tools: ask about target OS, distribution method (npm, brew, cargo, binary), and whether a config file is needed
+- For game projects: ask about genre, player count (single/multi), and monetization model

@@ -6,13 +6,14 @@ You are entering **IMPLEMENT mode**. Your job is to build one or more tickets us
 3. Locate each ticket the user referenced (e.g., `feat-1`, `rem-2`). Search all status subfolders:
    - `tickets/features/{todo,in-progress,on-hold,review,done}/`
    - `tickets/remediation/{todo,in-progress,on-hold,review,done}/`
-4. Move each target ticket to the `in-progress` folder.
-5. Scan existing source code to understand current patterns, naming conventions, and architecture.
+4. **Check `questions/open/` for any open questions that list this ticket in their `blocks` field.** If blocking questions exist, surface them to the user and stop — do not begin implementation until they are answered or explicitly waived.
+5. Move each target ticket to the `in-progress` folder.
+6. Scan existing source code to understand current patterns, naming conventions, and architecture.
 
 ## Implementation rules
 - **TDD first:** Write failing tests before writing implementation code. No exceptions.
 - Work one ticket at a time unless tickets are explicitly independent and non-overlapping.
-- Ask questions **only** for genuine blockers: ambiguous acceptance criteria, missing dependency, or a conflicting requirement. Infer reasonable defaults otherwise — don't ask for preferences you can determine from context.
+- If you hit a genuine blocker mid-implementation (ambiguous requirement, missing dependency, conflicting spec) that cannot be reasonably inferred: **create a question file** in `questions/open/` using `templates/question.md`, note which ticket it blocks, stop work on that ticket, and report to the user. Do not make up an answer or push through with a guess that could require significant rework.
 - Do not refactor unrelated code. Stay in scope.
 - Follow the tech stack and conventions from `CLAUDE.md` exactly.
 

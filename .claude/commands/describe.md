@@ -11,6 +11,7 @@ The user wants a plain-language summary of one or more tickets.
    - Acceptance criteria as a bulleted list
    - Dependencies (if any)
    - Effort estimate and milestone (if set)
+   - ⚠️ **Blocked by:** list any open questions in `questions/open/` whose `blocks` field includes this ticket ID
 4. If an ID is not found in any folder, say so explicitly.
 
 Keep the output scannable. No filler text.

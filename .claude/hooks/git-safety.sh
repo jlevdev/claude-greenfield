@@ -17,7 +17,13 @@ if echo "$COMMAND" | grep -qE '\bgit\s+push\b'; then
     echo "Blocked: '$COMMAND' force-pushes. Force-push is a human-only action in this project." >&2
     exit 2
   fi
-  if echo "$COMMAND" | grep -qE '\b(origin|upstream)\s+(main|master)\b'; then
+  # Any explicit remote name, not just origin/upstream -- `git push prod
+  # main` is exactly as dangerous as `git push origin main`. The remote
+  # token isn't anchored immediately after "push" so flags in between
+  # (e.g. `git push -u prod main`) don't slip past this. Real bypass found
+  # via the bypass-test suite (a "non-standard remote name" case already
+  # existed and was failing), 2026-08-10.
+  if echo "$COMMAND" | grep -qE '\bgit\s+push\b.*[^[:space:]]+\s+(main|master)\b'; then
     echo "Blocked: '$COMMAND' pushes directly to main/master. Per CLAUDE.md branch conventions, push a feat/fix/chore branch and open a PR instead." >&2
     exit 2
   fi

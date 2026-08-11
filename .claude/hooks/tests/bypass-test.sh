@@ -123,8 +123,10 @@ run_case "$H" block "gh repo delete"                              "$(bash_input 
 run_case "$H" allow "push to origin on a feature branch"          "$(bash_input 'git push origin feat/rem-1-hook-bypass-tests')"
 run_case "$H" allow "an ordinary git commit"                      "$(bash_input 'git commit -m "wip"')"
 
-section "git-safety.sh -- remote name other than origin/upstream"
+section "git-safety.sh -- remote name other than origin/upstream [fixed 2026-08-10]"
 run_case "$H" block "push main via a non-standard remote name"    "$(bash_input 'git push prod main')"
+run_case "$H" block "push main via non-standard remote with -u flag between push and remote" "$(bash_input 'git push -u prod main')"
+run_case "$H" allow "push a compound branch name containing 'main' as a substring" "$(bash_input 'git push origin feat/main-integration')"
 
 section "git-safety.sh -- fail closed on git error [found via containerized testing, 2026-08-10]"
 # A bare `git push` used to resolve the current branch with stderr

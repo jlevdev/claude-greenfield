@@ -1,0 +1,26 @@
+name: hook-tests
+
+# Gates changes to the guardrail hooks in .claude/hooks/ on the adversarial
+# bypass-test suite passing, run inside the same sandboxed container as
+# local runs (.claude/hooks/tests/run-sandboxed.sh). Add this job as a
+# required status check under Settings -> Branches -> Branch protection
+# rules for main, so a PR that regresses a hook can't merge.
+on:
+  pull_request:
+    paths:
+      - ".claude/hooks/**"
+      - ".github/workflows/hook-tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - ".claude/hooks/**"
+      - ".github/workflows/hook-tests.yml"
+
+jobs:
+  bypass-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run hook bypass-test suite (sandboxed)
+        run: .claude/hooks/tests/run-sandboxed.sh

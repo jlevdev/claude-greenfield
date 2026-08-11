@@ -1,0 +1,27 @@
+# Extended-regex patterns (grep -Eio), one per line, checked against the
+# raw tool-result payload from WebFetch/WebSearch by
+# scan-fetched-content-for-injection.sh. Non-exhaustive on purpose — this
+# is a heuristic tripwire that complements the model's own judgment (see
+# CLAUDE.md's "Prompt injection" research standard), not a replacement
+# for it. Add phrasings here as you encounter new ones worth flagging.
+
+ignore (all|any|the) (previous|prior|above) instructions
+disregard (all|any|the) (previous|prior|above) instructions
+forget (everything|all) (you (know|were told)|previous instructions)
+new instructions ?:
+system prompt
+reveal (your|the) (system )?prompt
+act as (if )?you (are|were)
+pretend (you|to) (are|be)
+you are now (a|an|no longer)
+do not (tell|inform|mention) (the )?user
+this is (a|an) (override|system) (message|instruction)
+\[system\]
+<\|im_start\|>
+\bjailbreak\b
+\bDAN\b
+# Note: a bare "exfiltrate" pattern used to live here. Removed after it
+# false-positived on ordinary security-writing prose ("...how an attacker
+# might exfiltrate data..."). The line below is the actionable-instruction
+# shape we actually want to catch instead.
+send (this|the) (data|contents|file|secret) to

@@ -1,0 +1,10 @@
+# Minimal, network-isolated image for running bypass-test.sh. GNU coreutils
+# (not busybox/alpine) on purpose -- the hooks use `sed -E`, `grep -E`, etc.
+# with GNU semantics, matching a real dev machine / GitHub Actions runner.
+# Built once and cached by run-sandboxed.sh; rebuilds only when this file
+# changes.
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends jq git ca-certificates \
+ && rm -rf /var/lib/apt/lists/*

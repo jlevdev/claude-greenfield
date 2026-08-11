@@ -2,7 +2,7 @@
 name: implement
 description: This skill should be used when the user asks to implement, build, or work on one or more tickets — e.g. "implement feat-3", "build rem-2", "let's start on feat-4 and feat-5" — or says "/implement". Enters test-driven implementation mode against this project's ticket workflow.
 argument-hint: <feat-N|rem-N> [more ticket IDs...]
-allowed-tools: [Read, Write, Edit, Bash, Glob, Grep]
+allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent]
 version: 1.0.0
 ---
 
@@ -36,8 +36,9 @@ Build one or more tickets using test-driven development.
 3. Implement the minimum code to make the tests pass.
 4. Confirm tests pass.
 5. Refactor only within the scope of this ticket, keeping tests green.
-6. Move the ticket file to the `review` folder.
-7. Summarize: what files changed, what tests were added, any decisions made.
+6. **Reviewer gate:** launch the `ticket-reviewer`, `silent-failure-hunter`, and `test-coverage-reviewer` subagents in parallel against this ticket's diff. If any reports a BLOCKING/CRITICAL finding, fix it and re-run that agent before continuing — do not proceed to step 7 with an unresolved blocking finding. Carry every NOTE-level finding forward into step 8 under "Reviewer Notes" so the human reviewer sees them without re-running the same checks.
+7. Move the ticket file to the `review` folder.
+8. Summarize: what files changed, what tests were added, any decisions made, and the Reviewer Notes from step 6.
 
 ## When all requested tickets are finished
 

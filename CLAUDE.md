@@ -100,7 +100,7 @@ Templates are in `templates/`.
 
 1. Tickets are written in `todo`
 2. `/implement feat-N` moves them to `in-progress` and builds with TDD
-3. When done, Claude moves them to `review`
+3. Before moving to `review`, the `ticket-reviewer`, `silent-failure-hunter`, and `test-coverage-reviewer` subagents check the diff against the ticket's acceptance criteria, error handling, and test coverage — blocking findings get fixed first, notes carry into the ticket summary
 4. Developer reviews; `/review-tests` runs chaos monkey validation
 5. Once accepted, tickets move to `done`
 
@@ -119,7 +119,23 @@ Both are invoked the same way (`/name`). Skills additionally auto-trigger from p
 | `/git-commit` | command | Stage and commit with conventional commit message |
 | `/git-branch` | command | Create a branch following naming conventions |
 | `/git-pr` | command | Open a pull request or merge request |
+| `/git-clean` | command | Delete local branches/worktrees whose remote is gone |
+| `/git-ship` | command | Branch (if needed), commit, push, and open a PR in one step |
 | `/deploy` | command | Pre-deploy checklist and deployment execution |
+
+### Reviewer Subagents
+
+Defined in `.claude/agents/`, invoked automatically by `implement`'s reviewer gate (see Sprint Flow above) and callable manually:
+
+| Agent | Checks |
+|-------|--------|
+| `ticket-reviewer` | Implementation against the ticket's acceptance criteria; scope creep; unmet dependencies |
+| `silent-failure-hunter` | Swallowed errors, overly broad catch blocks, unexplained fallbacks |
+| `test-coverage-reviewer` | Behavioral test coverage against acceptance criteria (completeness — distinct from `review-tests`' mutation-based robustness check) |
+
+### MCP Servers
+
+None configured in the template itself. `/start-project` offers to wire up GitHub (issue/PR management) and Context7 (live docs lookup) once the tech stack and git platform are known — see its "Optional MCP servers" step. When added, servers live in a project-root `.mcp.json` and required environment variables get documented in a `## MCP Servers` section here.
 
 ---
 

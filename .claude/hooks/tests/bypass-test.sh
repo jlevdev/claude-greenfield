@@ -254,6 +254,62 @@ review_gate_case "same gate applies to tickets/remediation/review/" \
 rm -rf "$RTBR_BIN" "$RTBR_NO_STACK" "$RTBR_STACK"
 
 # =========================================================================
+section "scan-commit-diff.sh"
+# =========================================================================
+# Operates on the staged diff in $CLAUDE_PROJECT_DIR, not on tool_input.command
+# text, so each case needs a real fixture git repo with something staged.
+H=scan-commit-diff.sh
+SCD_REPO=$(mktemp -d)
+git -C "$SCD_REPO" init -q
+git -C "$SCD_REPO" config user.email "test@example.com"
+git -C "$SCD_REPO" config user.name "Test"
+
+scd_case() {
+  local desc="$1" expected="$2" filecontent="$3"
+  TOTAL=$((TOTAL + 1))
+  printf '%s\n' "$filecontent" > "$SCD_REPO/scratch.txt"
+  git -C "$SCD_REPO" add scratch.txt >/dev/null 2>&1
+  local code
+  echo "$(bash_input 'git commit -m test')" \
+    | CLAUDE_PROJECT_DIR="$SCD_REPO" "$HOOKS_DIR/$H" >/dev/null 2>&1
+  code=$?
+  git -C "$SCD_REPO" reset -q >/dev/null 2>&1
+  if [[ "$expected" == "block" && "$code" -eq 2 ]] || [[ "$expected" == "allow" && "$code" -eq 0 ]]; then
+    PASS=$((PASS + 1)); echo "  PASS       [$H] $desc"
+  elif [[ "$expected" == "block" ]]; then
+    BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- $desc"
+  else
+    FALSE_POS=$((FALSE_POS + 1)); echo "  FALSE-POS  [$H] expected allow, got exit $code -- $desc"
+  fi
+}
+
+scd_case "eval() on a new line is blocked" block 'result = eval(user_input)'
+scd_case "os.system( is blocked" block 'run(cmd); os.system(cmd)'
+scd_case "hardcoded private key header is blocked" block '-----BEGIN RSA PRIVATE KEY-----'
+scd_case "ordinary code with no dangerous pattern is allowed" allow 'def add(a, b):
+    return a + b'
+
+# A dangerous line being *removed* (not added) must not block -- only lines
+# this commit adds are this commit's problem.
+git -C "$SCD_REPO" commit -q --allow-empty -m "seed" >/dev/null 2>&1
+printf '%s\n' 'x = os.system(cmd)' > "$SCD_REPO/scratch.txt"
+git -C "$SCD_REPO" add scratch.txt >/dev/null 2>&1
+git -C "$SCD_REPO" commit -q -m "add dangerous line" >/dev/null 2>&1
+printf '%s\n' 'x = 1' > "$SCD_REPO/scratch.txt"
+git -C "$SCD_REPO" add scratch.txt >/dev/null 2>&1
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input 'git commit -m test')" \
+  | CLAUDE_PROJECT_DIR="$SCD_REPO" "$HOOKS_DIR/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 0 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] removing a dangerous line (not adding one) is allowed"
+else
+  FALSE_POS=$((FALSE_POS + 1)); echo "  FALSE-POS  [$H] expected allow, got exit $code -- removing a dangerous line (not adding one)"
+fi
+
+rm -rf "$SCD_REPO"
+
+# =========================================================================
 section "scan-fetched-content-for-injection.sh"
 # =========================================================================
 H=scan-fetched-content-for-injection.sh

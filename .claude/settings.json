@@ -52,6 +52,11 @@
             "type": "command",
             "if": "Bash(git mv *)",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-tests-before-review.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git commit:*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-commit-diff.sh"
           }
         ]
       },

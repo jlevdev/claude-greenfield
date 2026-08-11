@@ -104,20 +104,22 @@ Templates are in `templates/`.
 4. Developer reviews; `/review-tests` runs chaos monkey validation
 5. Once accepted, tickets move to `done`
 
-### Available Commands
+### Available Commands & Skills
 
-| Command | What it does |
-|---------|-------------|
-| `/start-project` | Initialize a new project from a blurb — creates PRD, initial tickets, and git repo |
-| `/research` | Evaluate technology options with prompt-injection awareness and package vetting |
-| `/implement feat-N` | Enter TDD implementation mode for one or more tickets |
-| `/describe feat-N` | Summarize one or more tickets in plain language |
-| `/whats-next` | Overview of all in-progress and todo work |
-| `/review-tests` | Chaos monkey validation of tests for items in review |
-| `/git-commit` | Stage and commit with conventional commit message |
-| `/git-branch` | Create a branch following naming conventions |
-| `/git-pr` | Open a pull request or merge request |
-| `/deploy` | Pre-deploy checklist and deployment execution |
+Both are invoked the same way (`/name`). Skills additionally auto-trigger from plain-language requests (e.g. "what should I work on next" fires `whats-next` without typing the slash command), support progressive disclosure via a `references/` directory so detail loads only when needed, and can scope down tool access per mode via `allowed-tools`. Commands stay commands where that auto-trigger behavior isn't wanted (deliberate, one-shot, or purely mechanical actions).
+
+| Name | Type | What it does |
+|------|------|-------------|
+| `/start-project` | command | Initialize a new project from a blurb — creates PRD, initial tickets, and git repo |
+| `/research` | skill (`.claude/skills/research/`) | Evaluate technology options with prompt-injection awareness and package vetting |
+| `/implement feat-N` | skill (`.claude/skills/implement/`) | Enter TDD implementation mode for one or more tickets |
+| `/describe feat-N` | skill (`.claude/skills/describe/`) | Summarize one or more tickets in plain language |
+| `/whats-next` | skill (`.claude/skills/whats-next/`) | Overview of all in-progress and todo work |
+| `/review-tests` | skill (`.claude/skills/review-tests/`) | Chaos monkey validation of tests for items in review |
+| `/git-commit` | command | Stage and commit with conventional commit message |
+| `/git-branch` | command | Create a branch following naming conventions |
+| `/git-pr` | command | Open a pull request or merge request |
+| `/deploy` | command | Pre-deploy checklist and deployment execution |
 
 ---
 

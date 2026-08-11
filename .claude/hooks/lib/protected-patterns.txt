@@ -1,0 +1,20 @@
+# Substrings checked against file paths by protect-files.sh (blocks
+# Edit/Write) and guard-secret-reads.sh (blocks Read). One pattern per
+# line; blank lines and lines starting with # are ignored. Kept as plain
+# substrings, not regex, to stay easy to read and edit.
+
+.env
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+bun.lockb
+.git/
+id_rsa
+id_ed25519
+.pem
+.ssh/
+.aws/
+.kube/config
+.npmrc
+.netrc
+.pypirc

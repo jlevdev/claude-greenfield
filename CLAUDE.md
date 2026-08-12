@@ -116,6 +116,7 @@ Both are invoked the same way (`/name`). Skills additionally auto-trigger from p
 | `/describe feat-N` | skill (`.claude/skills/describe/`) | Summarize one or more tickets in plain language |
 | `/whats-next` | skill (`.claude/skills/whats-next/`) | Overview of all in-progress and todo work |
 | `/review-tests` | skill (`.claude/skills/review-tests/`) | Chaos monkey validation of tests for items in review |
+| `/pr-review [PR\|branch]` | skill (`.claude/skills/pr-review/`) | Read-only, severity-tagged review of a finished PR via parallel subagents — see below |
 | `/git-commit` | command | Stage and commit with conventional commit message |
 | `/git-branch` | command | Create a branch following naming conventions |
 | `/git-pr` | command | Open a pull request or merge request |
@@ -125,13 +126,16 @@ Both are invoked the same way (`/name`). Skills additionally auto-trigger from p
 
 ### Reviewer Subagents
 
-Defined in `.claude/agents/`, invoked automatically by `implement`'s reviewer gate (see Sprint Flow above) and callable manually:
+Defined in `.claude/agents/`, invoked automatically (by `implement`'s reviewer gate and/or `pr-review` — see below) and callable manually:
 
-| Agent | Checks |
-|-------|--------|
-| `ticket-reviewer` | Implementation against the ticket's acceptance criteria; scope creep; unmet dependencies |
-| `silent-failure-hunter` | Swallowed errors, overly broad catch blocks, unexplained fallbacks |
-| `test-coverage-reviewer` | Behavioral test coverage against acceptance criteria (completeness — distinct from `review-tests`' mutation-based robustness check) |
+| Agent | Checks | Used by |
+|-------|--------|---------|
+| `ticket-reviewer` | Implementation against a ticket's acceptance criteria; scope creep; unmet dependencies | `implement` (always); `pr-review` (only if the PR references ticket IDs) |
+| `test-coverage-reviewer` | Behavioral test coverage against acceptance criteria (completeness — distinct from `review-tests`' mutation-based robustness check) | `implement` (always); `pr-review` (only if the PR references ticket IDs) |
+| `silent-failure-hunter` | Swallowed errors, overly broad catch blocks, unexplained fallbacks | `implement`; `pr-review` (always — no ticket required) |
+| `pr-correctness-reviewer` | General bugs and `CLAUDE.md` compliance, confidence-scored (≥50 reported) | `pr-review` (always — no ticket required) |
+
+`implement`'s reviewer gate and the `pr-review` skill are not the same thing: the gate runs mid-development, blocking, on one ticket's diff, before it reaches `review/`. `pr-review` runs read-only on a finished PR — anyone's — after the fact, and never blocks anything. See `research/2026-08-11-pr-review-skill-design.md` for the design rationale.
 
 ### MCP Servers
 

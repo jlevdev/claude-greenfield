@@ -17,28 +17,42 @@ if echo "$COMMAND" | grep -qE '\bgit\s+push\b'; then
     echo "Blocked: '$COMMAND' force-pushes. Force-push is a human-only action in this project." >&2
     exit 2
   fi
-  # Any explicit remote name, not just origin/upstream -- `git push prod
-  # main` is exactly as dangerous as `git push origin main`. The remote
-  # token isn't anchored immediately after "push" so flags in between
-  # (e.g. `git push -u prod main`) don't slip past this. Real bypass found
-  # via the bypass-test suite (a "non-standard remote name" case already
-  # existed and was failing), 2026-08-10.
-  if echo "$COMMAND" | grep -qE '\bgit\s+push\b.*[^[:space:]]+\s+(main|master)\b'; then
-    echo "Blocked: '$COMMAND' pushes directly to main/master. Per CLAUDE.md branch conventions, push a feat/fix/chore branch and open a PR instead." >&2
-    exit 2
-  fi
-  # Destination-refspec syntax (src:dest), independent of remote name --
-  # e.g. `git push origin HEAD:main`, `git push HEAD:master`, `git push
-  # origin feature:main`. The check above only catches `origin main` /
-  # `upstream main` as separate tokens; a refspec's destination is a
-  # single `src:dest` token, so `origin HEAD:main` doesn't match it and
-  # slipped through. Also catches `git push origin :main`, which deletes
-  # the remote main branch outright. Real bypass found via code review,
-  # confirmed against this hook, fixed here.
-  if echo "$COMMAND" | grep -qE ':(main|master)\b'; then
-    echo "Blocked: '$COMMAND' pushes to main/master via refspec destination syntax (src:dest). Push a feat/fix/chore branch and open a PR instead." >&2
-    exit 2
-  fi
+  # Isolate each `git push ...` invocation's own segment, stopping at the
+  # next shell delimiter (;, &, |, #) -- otherwise a `main`/`master`
+  # mention in a later, unrelated chained command (e.g. `gh pr create
+  # --base main` after `&&`) gets mistaken for part of this push. Real
+  # false-block found via the pr-review skill, 2026-08-11: `git push
+  # origin feat/x && gh pr create --base main --head feat/x` (git-ship's
+  # own documented flow) was blocked even though the push itself never
+  # touches main.
+  PUSH_SEGMENTS=$(echo "$COMMAND" | grep -oE '\bgit[[:space:]]+push\b[^;&|#]*')
+
+  while IFS= read -r segment; do
+    [[ -z "$segment" ]] && continue
+
+    # Any explicit remote name, not just origin/upstream -- `git push prod
+    # main` is exactly as dangerous as `git push origin main`. Matches
+    # main/master as a bare token (`origin main`) or as the final
+    # component of a `refs/heads/...` path (`prod refs/heads/main`) --
+    # the bare-token-only form missed full-ref-path pushes, a real bypass
+    # found via the pr-review skill (CodeRabbit's review of PR #3),
+    # 2026-08-11. Deliberately scoped to the literal `refs/heads/` prefix
+    # rather than any prefix ending in `/`, so a differently-named branch
+    # that merely ends in "/main" (e.g. `release/main`) isn't blocked.
+    if echo "$segment" | grep -qE '[^[:space:]]+[[:space:]]+(refs/heads/)?(main|master)([[:space:]]|$)'; then
+      echo "Blocked: '$COMMAND' pushes directly to main/master. Per CLAUDE.md branch conventions, push a feat/fix/chore branch and open a PR instead." >&2
+      exit 2
+    fi
+    # Destination-refspec syntax (src:dest), independent of remote name --
+    # e.g. `git push origin HEAD:main`, `git push HEAD:master`, `git push
+    # origin feature:main`, `git push origin :main` (deletes remote main
+    # outright), and full-ref-path destinations like
+    # `HEAD:refs/heads/main`.
+    if echo "$segment" | grep -qE ':(refs/heads/)?(main|master)([[:space:]]|$)'; then
+      echo "Blocked: '$COMMAND' pushes to main/master via refspec destination syntax (src:dest). Push a feat/fix/chore branch and open a PR instead." >&2
+      exit 2
+    fi
+  done <<< "$PUSH_SEGMENTS"
   # Bare `git push` / `git push origin` pushes whatever the current branch
   # tracks — only a problem if that happens to be main/master.
   if ! echo "$COMMAND" | grep -qE '\b(origin|upstream)\s+\S+'; then

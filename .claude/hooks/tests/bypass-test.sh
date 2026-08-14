@@ -149,6 +149,36 @@ run_case "$H" block "push via full ref-path destination (HEAD:refs/heads/main)" 
 run_case "$H" block "push via full ref-path source, non-standard remote (prod refs/heads/main)" \
   "$(bash_input 'git push prod refs/heads/main')"
 
+section "git-safety.sh -- quoted refspec and --all/--mirror [found via pr-watch skill / CodeRabbit review, 2026-08-13]"
+# The segment-splitting from the previous section is itself naive about
+# shell quoting: a ; or : inside a quoted branch name isn't a real
+# command delimiter, so a quoted refspec could smuggle a main/master
+# destination past the split. --all/--mirror push every branch/ref,
+# including main, but matched neither the explicit-branch pattern (no
+# branch-name token) nor the bare-push fallback (skipped whenever the
+# remote has any argument, which --all/--mirror count as).
+run_case "$H" block "quoted refspec smuggling a colon-delimited main destination past segment-splitting" \
+  "$(bash_input "git push origin 'feature;safe:main'")"
+run_case "$H" block "git push origin --all pushes every branch, including main" \
+  "$(bash_input 'git push origin --all')"
+run_case "$H" block "git push origin --mirror pushes every ref, including main" \
+  "$(bash_input 'git push origin --mirror')"
+run_case "$H" block "git push --all with no explicit remote" \
+  "$(bash_input 'git push --all')"
+
+section "git-safety.sh -- quote-aware delimiter masking, not a wholesale fallback [fixed 2026-08-13]"
+# A first fix for the quoted-refspec bypass above disabled segment-
+# splitting outright whenever the command contained any quote character
+# at all -- which is nearly every commit message (an apostrophe in
+# ordinary prose counts). Found live: a commit message describing these
+# very fixes tripped it. Replaced with masking only the delimiter
+# characters that fall inside an actual quoted region, so splitting
+# stays precise instead of being disabled wholesale.
+run_case "$H" allow "an apostrophe in ordinary commit-message prose, no push content" \
+  "$(bash_input 'git commit -m "it'"'"'s a fix, doesn'"'"'t touch main"')"
+run_case "$H" allow "commit message mentioning a past push and an unrelated flag, separated by real prose" \
+  "$(bash_input 'git commit -m "fixed the push-to-main check. separately, added a check for the --all flag too"')"
+
 section "git-safety.sh -- fail closed on git error [found via containerized testing, 2026-08-10]"
 # A bare `git push` used to resolve the current branch with stderr
 # swallowed (2>/dev/null); if git errored for any reason, the empty
@@ -427,6 +457,28 @@ scd_a_case "git commit --all (long form) with dangerous unstaged content is bloc
 scd_a_case "normal (non -a) commit with dangerous content actually staged still blocks" \
   block "git commit -m test" staged
 rm -rf "$SCD_NOT_A_REPO"
+
+section "scan-commit-diff.sh -- git commit <pathspec> bypass [found via pr-review skill / CodeRabbit review, 2026-08-13]"
+# Same root issue as -a/--all above (a pathspec commits unstaged tracked
+# content too), via a bare filename instead of a flag. Fixed with a
+# best-effort heuristic: strip -m/--message's value and known no-value
+# flags, and if anything's left over, treat it as a possible pathspec.
+scd_a_case "bare pathspec (git commit f.py) with dangerous unstaged content is blocked" \
+  block "git commit f.py" unstaged
+scd_a_case "-m plus pathspec (git commit -m msg f.py) with dangerous unstaged content is blocked" \
+  block 'git commit -m "fix" f.py' unstaged
+scd_a_case "plain -m with an UNQUOTED single-word message is not mistaken for a pathspec" \
+  allow "git commit -m test" unstaged
+scd_a_case "heredoc message (this project's own git-commit convention) is not mistaken for a pathspec" \
+  allow 'git commit -m "$(cat <<'"'"'EOF'"'"'
+feat(x): something
+EOF
+)"' unstaged
+scd_a_case "heredoc message body containing a parenthesis is still not mistaken for a pathspec" \
+  allow 'git commit -m "$(cat <<'"'"'EOF'"'"'
+fix(x): correct behavior (see PR #3)
+EOF
+)"' unstaged
 
 # =========================================================================
 section "scan-fetched-content-for-injection.sh"

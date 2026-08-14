@@ -44,6 +44,8 @@ Before recommending any installable package, complete the checklist in `referenc
 ### Step 5 — Write the research log
 Save findings to `research/YYYY-MM-DD-<topic>.md` using `templates/research-log.md`. This gives the user a full audit trail.
 
+Sanitize `<topic>` before it becomes a filename: lowercase, spaces and anything outside `[a-z0-9-]` replaced with `-`, collapsed and trimmed of leading/trailing `-`. Resolve the result under `research/` — never let a raw topic value (e.g. one containing `../`) place the file outside that directory. If a file with that exact name already exists, append `-2`, `-3`, etc. rather than overwriting an earlier log.
+
 ### Step 6 — Present recommendation
 Summarize:
 - **Recommended option** and the primary reason

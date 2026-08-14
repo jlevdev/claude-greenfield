@@ -1,12 +1,12 @@
 ---
-allowed-tools: Bash(git log:*), Bash(git branch:*), Bash(git status:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr list:*), Bash(glab mr create:*)
+allowed-tools: Bash(git log:*), Bash(git branch:*), Bash(git status:*), Bash(gh pr create:*), Bash(gh pr view:*), Bash(gh pr list:*), Bash(glab mr create:*), Bash(glab mr view:*)
 description: Open a pull request on GitHub (or GitLab) for the current branch using the CLI
 ---
 
 ## Context
 - Current branch: !`git branch --show-current`
 - Recent commits on this branch: !`git log --oneline -15`
-- Existing PR for this branch, if any: !`gh pr view --json url,state`
+- Existing PR for this branch, if any (GitHub only — see Steps for GitLab): !`gh pr view --json url,state`
 
 ## Default platform: GitHub
 This project uses GitHub. Use `gh` for all PR operations. If a specific project overrides this in its `CLAUDE.md` Tech Stack table to GitLab, use `glab mr create` instead.
@@ -38,7 +38,7 @@ Closes: feat-N, rem-N
 ```
 
 ## Steps
-1. Check the context above — if a PR already exists for this branch, show it to the user and ask whether they want to update it instead of creating a new one.
+1. If this project's `CLAUDE.md` specifies GitLab, the context above doesn't apply — it's a GitHub-only prefetch. Run `glab mr view` instead to check for an existing merge request before creating one. Otherwise, check the context above — if a PR already exists for this branch, show it to the user and ask whether they want to update it instead of creating a new one.
 2. Read the ticket files referenced in commit messages for context.
 3. Draft the title (under 70 chars) and body using the template above.
 4. Confirm the draft with the user before creating.

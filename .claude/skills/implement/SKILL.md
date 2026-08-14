@@ -36,7 +36,7 @@ Build one or more tickets using test-driven development.
 3. Implement the minimum code to make the tests pass.
 4. Confirm tests pass.
 5. Refactor only within the scope of this ticket, keeping tests green.
-6. **Reviewer gate:** launch the `ticket-reviewer`, `silent-failure-hunter`, and `test-coverage-reviewer` subagents in parallel against this ticket's diff. If any reports a BLOCKING/CRITICAL finding, fix it and re-run that agent before continuing — do not proceed to step 7 with an unresolved blocking finding. Carry every NOTE-level finding forward into step 8 under "Reviewer Notes" so the human reviewer sees them without re-running the same checks.
+6. **Reviewer gate:** launch the `ticket-reviewer`, `silent-failure-hunter`, and `test-coverage-reviewer` subagents in parallel against this ticket's diff. Each has its own verdict vocabulary — `ticket-reviewer`/`test-coverage-reviewer` output `BLOCKED` or `PASS`; `silent-failure-hunter` blocks only on a `CRITICAL` finding. Treat any of those (`BLOCKED` or `CRITICAL`) as blocking. If any agent blocks, fix it and **re-run all three agents** against the updated diff, not just the one that flagged — a fix for one agent's finding can introduce something a different agent would have caught. Proceed to step 7 only once all three are non-blocking. Carry every non-blocking note forward into step 8 under "Reviewer Notes" so the human reviewer sees them without re-running the same checks.
 7. Move the ticket file to the `review` folder.
 8. Summarize: what files changed, what tests were added, any decisions made, and the Reviewer Notes from step 6.
 

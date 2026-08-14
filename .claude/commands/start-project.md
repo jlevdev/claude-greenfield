@@ -96,6 +96,12 @@ If the user wants either, write `.mcp.json` at the project root, including only 
 
 `.mcp.json` is project-scoped and gets checked into git so the whole team gets the same servers automatically — never put a literal token in it, only the `${VAR}` reference. Document whichever environment variables are actually required in `CLAUDE.md` under a new `## MCP Servers` section so the next person (or agent) knows to set them before the server will connect.
 
+Step 3e's init commit already ran before this step, so `.mcp.json` (and the `CLAUDE.md` update above) are untracked at this point if either was created — commit them now:
+```bash
+git add .mcp.json CLAUDE.md
+git commit -m "chore: configure MCP servers"
+```
+
 ## Step 4 — Walk the user through it
 Summarize what was created:
 - PRD location and key decisions recorded

@@ -26,7 +26,7 @@ You will be given a ticket ID (or the ticket file's contents directly) and the d
 
 ## Output format
 
-```
+```text
 ## Ticket Review: <id> — <title>
 
 ### Acceptance Criteria

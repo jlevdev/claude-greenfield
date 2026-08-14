@@ -1,6 +1,6 @@
 ---
 name: review-tests
-description: This skill should be used when the user asks to validate, chaos-test, or mutation-test the tests for tickets currently in review — e.g. "chaos monkey the tests in review", "check test coverage before we accept this", "run review-tests" — or says "/review-tests".
+description: This skill should be used when the user asks to validate, chaos-test, or mutation-test the tests for tickets currently in review — e.g. "chaos monkey the tests in review", "mutation-test the tests in review", "run review-tests" — or says "/review-tests".
 allowed-tools: [Read, Edit, Bash, Write, Glob, Grep]
 version: 1.0.0
 ---
@@ -22,6 +22,8 @@ version: 1.0.0
 - Node modules, build artifacts, lock files
 
 **No changes are committed.** Every mutation must be reverted before this session ends. If anything goes wrong and a clean revert isn't possible, stop and report to the user immediately.
+
+Before mutating anything, capture a baseline: `git stash create` (or `git diff` if there's nothing to stash) over the files about to be touched, without applying it — this records what was already there, including any uncommitted work-in-progress, distinct from what this session is about to change. Revert each mutation against that baseline, not just "undo the last edit," so an interrupted session doesn't leave pre-existing uncommitted changes tangled up with mutation leftovers.
 
 ## Process
 

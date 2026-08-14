@@ -24,7 +24,7 @@ Rate each gap 1-10 on criticality:
 
 ## Output format
 
-```
+```text
 ## Test Coverage Review: <ticket id>
 
 ### Coverage by Criterion

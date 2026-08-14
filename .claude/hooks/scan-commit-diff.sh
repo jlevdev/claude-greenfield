@@ -52,7 +52,13 @@ fi
 _is_exempt_file() {
   case "$1" in
     .claude/hooks/lib/dangerous-code-patterns.txt) return 0 ;;
-    .claude/hooks/tests/*) return 0 ;;
+    # Narrowly scoped to the one fixture that legitimately needs to
+    # contain literal dangerous-looking strings -- not the whole tests/
+    # directory, so a real dangerous pattern added to any other file
+    # under tests/ still gets scanned. Narrowed from a directory-wide
+    # exemption after independent agreement from silent-failure-hunter
+    # and CodeRabbit's review of PR #3, 2026-08-13.
+    .claude/hooks/tests/bypass-test.sh) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -63,18 +69,40 @@ _is_exempt_file() {
 # `git diff --cached`. Scan against HEAD (staged + unstaged) instead
 # whenever -a is present, so what's about to actually be committed is what
 # gets checked, not just what happens to already be staged.
-#
-# Known gap, not silently ignored: a bare pathspec argument (`git commit
-# path/to/file`) has a similar effect scoped to that path, and isn't
-# detected here -- reliably telling a pathspec apart from other commit
-# arguments via regex isn't tractable without a real command-line parser.
-# --cached is still checked in that case, so a staged dangerous change is
-# still caught; only an unstaged-but-pathspec-included one could slip by.
 INPUT=$(cat)
 COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 DIFF_REF="--cached"
 if echo "$COMMAND" | grep -qE -- '(^|[[:space:]])-a[a-zA-Z]*([[:space:]]|$)|--all\b'; then
   DIFF_REF="HEAD"
+fi
+
+# `git commit <pathspec>` (e.g. `git commit f.py`) has the same effect as
+# -a but scoped to that path: it includes the path's unstaged tracked
+# content even though it was never staged. Reliably telling a pathspec
+# apart from other commit arguments needs a real parser, not a regex --
+# this is a best-effort heuristic, not that parser: strip a simple -m/
+# --message value (a plain "..."/'...'/$(...) argument) and known no-
+# value flags, and if anything is left over, treat it as a possible
+# pathspec and broaden to HEAD, same as -a. Errs toward over-scanning
+# (safe) on anything it can't confidently strip, rather than trying
+# harder to prove a pathspec is absent. Skipped entirely for a heredoc
+# message (`-m "$(cat <<'EOF' ... EOF)"`, this project's own git-commit
+# convention) -- the message body can contain almost anything, including
+# text that would trip the stripping regex, and a heredoc is never
+# itself a pathspec. Real gap found via the pr-review skill (CodeRabbit's
+# review of PR #3), 2026-08-13.
+if [[ "$DIFF_REF" == "--cached" ]] && ! echo "$COMMAND" | grep -qE -- '(-m|--message)[[:space:]]*.*<<'; then
+  STRIPPED=$(echo "$COMMAND" | sed -E '
+    s/^.*\bgit[[:space:]]+commit\b//;
+    s/(-m|--message)[[:space:]]+"[^"]*"//g;
+    s/(-m|--message)[[:space:]]+'"'"'[^'"'"']*'"'"'//g;
+    s/(-m|--message)[[:space:]]+\$\([^)]*\)//g;
+    s/(-m|--message)[[:space:]]+[^[:space:]"'"'"'$]+//g;
+    s/(^|[[:space:]])--?(a|all|amend|no-edit|no-verify|verbose|v|quiet|q|signoff|s|edit|e)\b//g;
+  ')
+  if echo "$STRIPPED" | grep -qE '[^[:space:]]'; then
+    DIFF_REF="HEAD"
+  fi
 fi
 
 CHANGED_FILES=$(git diff "$DIFF_REF" --name-only 2>&1)

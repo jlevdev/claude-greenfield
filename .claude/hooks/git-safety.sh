@@ -13,48 +13,44 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 [[ -z "$COMMAND" ]] && exit 0
 
 if echo "$COMMAND" | grep -qE '\bgit\s+push\b'; then
-  if echo "$COMMAND" | grep -qE -- '(--force\b|--force-with-lease\b|\s-f\b)'; then
-    echo "Blocked: '$COMMAND' force-pushes. Force-push is a human-only action in this project." >&2
-    exit 2
-  fi
-  # --all and --mirror push every local branch (--mirror: every ref) to
-  # the remote, including main/master, and match neither the
-  # explicit-branch check below (no branch name token to match) nor the
-  # bare-push fallback (skipped whenever the remote has any argument,
-  # which --all/--mirror count as). Real bypass found via the pr-review
-  # skill (CodeRabbit's review of PR #3), 2026-08-13.
-  if echo "$COMMAND" | grep -qE -- '\bgit\s+push\b.*(--all\b|--mirror\b)'; then
-    echo "Blocked: '$COMMAND' pushes all branches/refs, which includes main/master regardless of remote. Push a single feat/fix/chore branch instead." >&2
-    exit 2
-  fi
   # Isolate each `git push ...` invocation's own segment, stopping at the
-  # next shell delimiter (;, &, |, #) -- otherwise a `main`/`master`
-  # mention in a later, unrelated chained command (e.g. `gh pr create
-  # --base main` after `&&`) gets mistaken for part of this push. Real
-  # false-block found via the pr-review skill, 2026-08-11: `git push
-  # origin feat/x && gh pr create --base main --head feat/x` (git-ship's
-  # own documented flow) was blocked even though the push itself never
-  # touches main.
+  # next shell delimiter (;, &, |, #) -- otherwise a flag or a
+  # `main`/`master` mention in a later, unrelated chained command (e.g.
+  # `gh pr create --base main` after `&&`, or `echo --all`) gets mistaken
+  # for part of this push. Real false-blocks found via the pr-review
+  # skill across two rounds of review (2026-08-11 through 2026-08-13):
+  # a chained `gh pr create --base main` call, and later an unrelated
+  # `echo --all` after a legitimate push.
   #
   # Naive delimiter-splitting doesn't know that a ; or & *inside a
-  # quoted string* isn't a real command delimiter -- `git push origin
-  # 'feature;safe:main'` would otherwise truncate the segment before the
-  # real ':main' destination, missing it entirely (real bypass found via
-  # the pr-review skill, CodeRabbit's review of PR #3, 2026-08-13). A
-  # first fix disabled splitting outright whenever any quote character
-  # appeared anywhere in the command -- but that's most commands: an
-  # ordinary apostrophe in unrelated prose (a commit message discussing
-  # this very fix, for instance) triggered it too, reopening the
-  # compound-command false-block on nearly everything. Mask delimiter
-  # characters that fall *inside* a quoted region instead, so splitting
-  # stays precise rather than being disabled wholesale. Quote characters
-  # themselves are left alone (the boundary check below still needs to
-  # see them), only ; & | # get masked, and only while inside a quote.
+  # quoted string, or escaped with a backslash,* isn't a real command
+  # delimiter -- `git push origin 'feature;safe:main'` or `git push
+  # origin feature\;safe:main` would otherwise truncate the segment
+  # before the real ':main' destination, missing it entirely (real
+  # bypasses found via the pr-review skill, CodeRabbit's review of PR
+  # #3, 2026-08-13, across two rounds -- the first fix handled quotes
+  # but not backslash-escaping). A first attempt at the quote case
+  # disabled splitting outright whenever any quote character appeared
+  # anywhere in the command -- but that's most commands: an ordinary
+  # apostrophe in unrelated prose (a commit message discussing this very
+  # fix, for instance) triggered it too. Mask delimiter characters that
+  # fall *inside a quoted region* or are *backslash-escaped* instead, so
+  # splitting stays precise rather than being disabled wholesale. Quote
+  # characters themselves are left alone (the boundary check below still
+  # needs to see them), only ; & | # get masked, and only when they
+  # wouldn't be real delimiters to an actual shell.
   MASKED_COMMAND=$(echo "$COMMAND" | awk '
     {
       n = length($0); instr = 0; qc = ""; out = ""
       for (i = 1; i <= n; i++) {
         c = substr($0, i, 1)
+        if (c == "\\" && i < n) {
+          nc = substr($0, i + 1, 1)
+          if (nc == ";" || nc == "&" || nc == "|" || nc == "#") { nc = "_" }
+          out = out c nc
+          i++
+          continue
+        }
         if (instr) {
           if (c == qc) { instr = 0 }
           else if (c == ";" || c == "&" || c == "|" || c == "#") { c = "_" }
@@ -70,6 +66,23 @@ if echo "$COMMAND" | grep -qE '\bgit\s+push\b'; then
   while IFS= read -r segment; do
     [[ -z "$segment" ]] && continue
 
+    if echo "$segment" | grep -qE -- '(--force\b|--force-with-lease\b|\s-f\b)'; then
+      echo "Blocked: '$COMMAND' force-pushes. Force-push is a human-only action in this project." >&2
+      exit 2
+    fi
+    # --all and --mirror push every local branch (--mirror: every ref) to
+    # the remote, including main/master, and match neither the
+    # explicit-branch check below (no branch name token to match) nor the
+    # bare-push fallback (skipped whenever the remote has any argument,
+    # which --all/--mirror count as). Scoped to this push's own segment,
+    # not the whole command -- checking the whole command false-blocked
+    # an unrelated later mention (e.g. `git push origin feat/x && echo
+    # --all`), a real bug found via the pr-review skill (CodeRabbit's
+    # review of PR #3), 2026-08-13.
+    if echo "$segment" | grep -qE -- '(--all\b|--mirror\b)'; then
+      echo "Blocked: '$COMMAND' pushes all branches/refs, which includes main/master regardless of remote. Push a single feat/fix/chore branch instead." >&2
+      exit 2
+    fi
     # Any explicit remote name, not just origin/upstream -- `git push prod
     # main` is exactly as dangerous as `git push origin main`. Matches
     # main/master as a bare token (`origin main`) or as the final
@@ -80,7 +93,7 @@ if echo "$COMMAND" | grep -qE '\bgit\s+push\b'; then
     # rather than any prefix ending in `/`, so a differently-named branch
     # that merely ends in "/main" (e.g. `release/main`) isn't blocked.
     # The trailing boundary also accepts a quote character, not just
-    # whitespace/end-of-string -- needed for the quoted-command fallback
+    # whitespace/end-of-string -- needed for the quoted-command case
     # above, where `main` is followed by a closing quote rather than a
     # space (e.g. `origin 'feature;safe:main'`).
     if echo "$segment" | grep -qE "[^[:space:]]+[[:space:]]+(refs/heads/)?(main|master)([[:space:]\"']|\$)"; then

@@ -179,6 +179,23 @@ run_case "$H" allow "an apostrophe in ordinary commit-message prose, no push con
 run_case "$H" allow "commit message mentioning a past push and an unrelated flag, separated by real prose" \
   "$(bash_input 'git commit -m "fixed the push-to-main check. separately, added a check for the --all flag too"')"
 
+section "git-safety.sh -- per-segment flag scoping and backslash-escaped delimiters [found via pr-watch skill / CodeRabbit review, 2026-08-14]"
+# Two more bugs in the same push-checking logic, found by a second
+# CodeRabbit review pass triggered by pr-watch's own watch-until-settled
+# loop: (A) --force and --all/--mirror were checked against the whole
+# command like the original main/master bug, so a later unrelated
+# mention (e.g. `echo --all` after a real push) false-blocked; (B) the
+# quote-aware masking added for the quoted-refspec bug didn't account
+# for backslash-escaped delimiters outside quotes, so `git push origin
+# feature\;safe:main` (no real quotes at all) smuggled the same
+# destination past segment-splitting that quoting did before.
+run_case "$H" allow "push a feature branch, unrelated echo mentions --all in a later command" \
+  "$(bash_input 'git push origin feat/x && echo --all')"
+run_case "$H" allow "push a feature branch, unrelated echo mentions --force in a later command" \
+  "$(bash_input 'git push origin feat/x && echo --force')"
+run_case "$H" block "backslash-escaped semicolon (no quotes) smuggling a main destination past segment-splitting" \
+  "$(bash_input 'git push origin feature\;safe:main')"
+
 section "git-safety.sh -- fail closed on git error [found via containerized testing, 2026-08-10]"
 # A bare `git push` used to resolve the current branch with stderr
 # swallowed (2>/dev/null); if git errored for any reason, the empty
@@ -479,6 +496,11 @@ scd_a_case "heredoc message body containing a parenthesis is still not mistaken 
 fix(x): correct behavior (see PR #3)
 EOF
 )"' unstaged
+scd_a_case "heredoc message with a real trailing pathspec is caught [found via pr-watch skill / CodeRabbit review, 2026-08-14]" \
+  block 'git commit -m "$(cat <<'"'"'EOF'"'"'
+some heredoc message
+EOF
+)" f.py' unstaged
 
 # =========================================================================
 section "scan-fetched-content-for-injection.sh"

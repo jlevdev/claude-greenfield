@@ -85,23 +85,40 @@ fi
 # value flags, and if anything is left over, treat it as a possible
 # pathspec and broaden to HEAD, same as -a. Errs toward over-scanning
 # (safe) on anything it can't confidently strip, rather than trying
-# harder to prove a pathspec is absent. Skipped entirely for a heredoc
-# message (`-m "$(cat <<'EOF' ... EOF)"`, this project's own git-commit
-# convention) -- the message body can contain almost anything, including
-# text that would trip the stripping regex, and a heredoc is never
-# itself a pathspec. Real gap found via the pr-review skill (CodeRabbit's
-# review of PR #3), 2026-08-13.
-if [[ "$DIFF_REF" == "--cached" ]] && ! echo "$COMMAND" | grep -qE -- '(-m|--message)[[:space:]]*.*<<'; then
-  STRIPPED=$(echo "$COMMAND" | sed -E '
-    s/^.*\bgit[[:space:]]+commit\b//;
-    s/(-m|--message)[[:space:]]+"[^"]*"//g;
-    s/(-m|--message)[[:space:]]+'"'"'[^'"'"']*'"'"'//g;
-    s/(-m|--message)[[:space:]]+\$\([^)]*\)//g;
-    s/(-m|--message)[[:space:]]+[^[:space:]"'"'"'$]+//g;
-    s/(^|[[:space:]])--?(a|all|amend|no-edit|no-verify|verbose|v|quiet|q|signoff|s|edit|e)\b//g;
-  ')
-  if echo "$STRIPPED" | grep -qE '[^[:space:]]'; then
-    DIFF_REF="HEAD"
+# harder to prove a pathspec is absent.
+#
+# A heredoc message (`-m "$(cat <<'EOF' ... EOF)"`, this project's own
+# git-commit convention) needs different handling: the body can contain
+# almost anything, including text that would trip the stripping regex
+# above, so that regex is skipped for it -- but a first version of this
+# fix skipped pathspec detection *entirely* for a heredoc message,
+# missing a trailing pathspec appended after it (`... EOF)" dangerous.py`
+# would leave DIFF_REF at --cached, scanning nothing while committing
+# dangerous.py's unstaged content). Real gap found via the pr-review
+# skill (CodeRabbit's review of PR #3), 2026-08-14. Instead of parsing
+# the heredoc body, check only the command's last line: this project's
+# heredoc convention always ends the command on a line that's just `)"`
+# closing the substitution; anything left over after stripping that
+# closer off the last line is a likely trailing pathspec.
+if [[ "$DIFF_REF" == "--cached" ]]; then
+  if echo "$COMMAND" | grep -qE -- '(-m|--message)[[:space:]]*.*<<'; then
+    LAST_LINE=$(echo "$COMMAND" | tail -n 1)
+    TRAILING=$(echo "$LAST_LINE" | sed -E "s/^[[:space:]]*\\)[\"']?//")
+    if echo "$TRAILING" | grep -qE '[^[:space:]]'; then
+      DIFF_REF="HEAD"
+    fi
+  else
+    STRIPPED=$(echo "$COMMAND" | sed -E '
+      s/^.*\bgit[[:space:]]+commit\b//;
+      s/(-m|--message)[[:space:]]+"[^"]*"//g;
+      s/(-m|--message)[[:space:]]+'"'"'[^'"'"']*'"'"'//g;
+      s/(-m|--message)[[:space:]]+\$\([^)]*\)//g;
+      s/(-m|--message)[[:space:]]+[^[:space:]"'"'"'$]+//g;
+      s/(^|[[:space:]])--?(a|all|amend|no-edit|no-verify|verbose|v|quiet|q|signoff|s|edit|e)\b//g;
+    ')
+    if echo "$STRIPPED" | grep -qE '[^[:space:]]'; then
+      DIFF_REF="HEAD"
+    fi
   fi
 fi
 

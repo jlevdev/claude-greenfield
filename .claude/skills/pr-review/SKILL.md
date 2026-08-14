@@ -2,8 +2,8 @@
 name: pr-review
 description: This skill should be used when the user asks to review a pull request, review a PR, review this branch before merging, get a second opinion on a PR, or says "/pr-review". Runs a read-only, severity-tagged review using parallel specialized subagents and existing PR comments, then walks the user through each finding as a multi-choice decision; never edits code, approves, merges, or posts PR comments without an explicit per-finding choice to do so.
 argument-hint: <PR number or branch (optional — defaults to the current branch's PR)>
-allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion, "Bash(gh pr:*)", "Bash(gh api repos/*/pulls/*/reviews:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)"]
-version: 1.2.0
+allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion, "Bash(gh pr:*)", "Bash(gh api repos/*/pulls/*/reviews:*)", "Bash(gh api repos/*/pulls/*/comments:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)"]
+version: 1.3.0
 ---
 
 # PR Review

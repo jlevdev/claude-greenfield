@@ -123,8 +123,78 @@ run_case "$H" block "gh repo delete"                              "$(bash_input 
 run_case "$H" allow "push to origin on a feature branch"          "$(bash_input 'git push origin feat/rem-1-hook-bypass-tests')"
 run_case "$H" allow "an ordinary git commit"                      "$(bash_input 'git commit -m "wip"')"
 
-section "git-safety.sh -- remote name other than origin/upstream"
+section "git-safety.sh -- remote name other than origin/upstream [fixed 2026-08-10]"
 run_case "$H" block "push main via a non-standard remote name"    "$(bash_input 'git push prod main')"
+run_case "$H" block "push main via non-standard remote with -u flag between push and remote" "$(bash_input 'git push -u prod main')"
+run_case "$H" allow "push a compound branch name containing 'main' as a substring" "$(bash_input 'git push origin feat/main-integration')"
+
+section "git-safety.sh -- compound commands and full-ref-path pushes [found via pr-review skill, 2026-08-12]"
+# Two bugs from the same PUSH_SEGMENTS restructure: (A) the broadened
+# 2026-08-10 fix let '.*' span into an unrelated chained command, so a
+# `main` mention anywhere after `git push` -- even in a totally different
+# command joined by && -- false-blocked; (B) `refs/heads/main` and
+# `HEAD:refs/heads/main` weren't recognized as pushes to main at all,
+# a genuine bypass CodeRabbit's review of PR #3 caught that neither
+# subagent did.
+run_case "$H" allow "push a feature branch then open a PR against main in the same compound command" \
+  "$(bash_input 'git push origin feat/x && gh pr create --base main --head feat/x')"
+run_case "$H" allow "push then check out main in a second, semicolon-separated command" \
+  "$(bash_input 'git push origin HEAD; git checkout main')"
+run_case "$H" allow "a trailing comment mentioning main after a legitimate push" \
+  "$(bash_input 'git push origin feat/x  # remember to rebase onto main later')"
+run_case "$H" allow "a differently-named branch that merely ends in /main" \
+  "$(bash_input 'git push origin release/main')"
+run_case "$H" block "push via full ref-path destination (HEAD:refs/heads/main)" \
+  "$(bash_input 'git push origin HEAD:refs/heads/main')"
+run_case "$H" block "push via full ref-path source, non-standard remote (prod refs/heads/main)" \
+  "$(bash_input 'git push prod refs/heads/main')"
+
+section "git-safety.sh -- quoted refspec and --all/--mirror [found via pr-watch skill / CodeRabbit review, 2026-08-13]"
+# The segment-splitting from the previous section is itself naive about
+# shell quoting: a ; or : inside a quoted branch name isn't a real
+# command delimiter, so a quoted refspec could smuggle a main/master
+# destination past the split. --all/--mirror push every branch/ref,
+# including main, but matched neither the explicit-branch pattern (no
+# branch-name token) nor the bare-push fallback (skipped whenever the
+# remote has any argument, which --all/--mirror count as).
+run_case "$H" block "quoted refspec smuggling a colon-delimited main destination past segment-splitting" \
+  "$(bash_input "git push origin 'feature;safe:main'")"
+run_case "$H" block "git push origin --all pushes every branch, including main" \
+  "$(bash_input 'git push origin --all')"
+run_case "$H" block "git push origin --mirror pushes every ref, including main" \
+  "$(bash_input 'git push origin --mirror')"
+run_case "$H" block "git push --all with no explicit remote" \
+  "$(bash_input 'git push --all')"
+
+section "git-safety.sh -- quote-aware delimiter masking, not a wholesale fallback [fixed 2026-08-13]"
+# A first fix for the quoted-refspec bypass above disabled segment-
+# splitting outright whenever the command contained any quote character
+# at all -- which is nearly every commit message (an apostrophe in
+# ordinary prose counts). Found live: a commit message describing these
+# very fixes tripped it. Replaced with masking only the delimiter
+# characters that fall inside an actual quoted region, so splitting
+# stays precise instead of being disabled wholesale.
+run_case "$H" allow "an apostrophe in ordinary commit-message prose, no push content" \
+  "$(bash_input 'git commit -m "it'"'"'s a fix, doesn'"'"'t touch main"')"
+run_case "$H" allow "commit message mentioning a past push and an unrelated flag, separated by real prose" \
+  "$(bash_input 'git commit -m "fixed the push-to-main check. separately, added a check for the --all flag too"')"
+
+section "git-safety.sh -- per-segment flag scoping and backslash-escaped delimiters [found via pr-watch skill / CodeRabbit review, 2026-08-14]"
+# Two more bugs in the same push-checking logic, found by a second
+# CodeRabbit review pass triggered by pr-watch's own watch-until-settled
+# loop: (A) --force and --all/--mirror were checked against the whole
+# command like the original main/master bug, so a later unrelated
+# mention (e.g. `echo --all` after a real push) false-blocked; (B) the
+# quote-aware masking added for the quoted-refspec bug didn't account
+# for backslash-escaped delimiters outside quotes, so `git push origin
+# feature\;safe:main` (no real quotes at all) smuggled the same
+# destination past segment-splitting that quoting did before.
+run_case "$H" allow "push a feature branch, unrelated echo mentions --all in a later command" \
+  "$(bash_input 'git push origin feat/x && echo --all')"
+run_case "$H" allow "push a feature branch, unrelated echo mentions --force in a later command" \
+  "$(bash_input 'git push origin feat/x && echo --force')"
+run_case "$H" block "backslash-escaped semicolon (no quotes) smuggling a main destination past segment-splitting" \
+  "$(bash_input 'git push origin feature\;safe:main')"
 
 section "git-safety.sh -- fail closed on git error [found via containerized testing, 2026-08-10]"
 # A bare `git push` used to resolve the current branch with stderr
@@ -252,6 +322,185 @@ review_gate_case "same gate applies to tickets/remediation/review/" \
   block "mv tickets/remediation/todo/rem-2-x.md tickets/remediation/review/rem-2-x.md" "$RTBR_STACK" 1
 
 rm -rf "$RTBR_BIN" "$RTBR_NO_STACK" "$RTBR_STACK"
+
+# =========================================================================
+section "scan-commit-diff.sh"
+# =========================================================================
+# Operates on the staged diff in $CLAUDE_PROJECT_DIR, not on tool_input.command
+# text, so each case needs a real fixture git repo with something staged.
+H=scan-commit-diff.sh
+SCD_REPO=$(mktemp -d)
+git -C "$SCD_REPO" init -q
+git -C "$SCD_REPO" config user.email "test@example.com"
+git -C "$SCD_REPO" config user.name "Test"
+
+scd_case() {
+  local desc="$1" expected="$2" filecontent="$3"
+  TOTAL=$((TOTAL + 1))
+  printf '%s\n' "$filecontent" > "$SCD_REPO/scratch.txt"
+  git -C "$SCD_REPO" add scratch.txt >/dev/null 2>&1
+  local code
+  echo "$(bash_input 'git commit -m test')" \
+    | CLAUDE_PROJECT_DIR="$SCD_REPO" "$HOOKS_DIR/$H" >/dev/null 2>&1
+  code=$?
+  git -C "$SCD_REPO" reset -q >/dev/null 2>&1
+  if [[ "$expected" == "block" && "$code" -eq 2 ]] || [[ "$expected" == "allow" && "$code" -eq 0 ]]; then
+    PASS=$((PASS + 1)); echo "  PASS       [$H] $desc"
+  elif [[ "$expected" == "block" ]]; then
+    BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- $desc"
+  else
+    FALSE_POS=$((FALSE_POS + 1)); echo "  FALSE-POS  [$H] expected allow, got exit $code -- $desc"
+  fi
+}
+
+scd_case "eval() on a new line is blocked" block 'result = eval(user_input)'
+scd_case "os.system( is blocked" block 'run(cmd); os.system(cmd)'
+scd_case "hardcoded private key header is blocked" block '-----BEGIN RSA PRIVATE KEY-----'
+scd_case "ordinary code with no dangerous pattern is allowed" allow 'def add(a, b):
+    return a + b'
+
+# A dangerous line being *removed* (not added) must not block -- only lines
+# this commit adds are this commit's problem.
+git -C "$SCD_REPO" commit -q --allow-empty -m "seed" >/dev/null 2>&1
+printf '%s\n' 'x = os.system(cmd)' > "$SCD_REPO/scratch.txt"
+git -C "$SCD_REPO" add scratch.txt >/dev/null 2>&1
+git -C "$SCD_REPO" commit -q -m "add dangerous line" >/dev/null 2>&1
+printf '%s\n' 'x = 1' > "$SCD_REPO/scratch.txt"
+git -C "$SCD_REPO" add scratch.txt >/dev/null 2>&1
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input 'git commit -m test')" \
+  | CLAUDE_PROJECT_DIR="$SCD_REPO" "$HOOKS_DIR/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 0 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] removing a dangerous line (not adding one) is allowed"
+else
+  FALSE_POS=$((FALSE_POS + 1)); echo "  FALSE-POS  [$H] expected allow, got exit $code -- removing a dangerous line (not adding one)"
+fi
+
+rm -rf "$SCD_REPO"
+
+section "scan-commit-diff.sh -- fail closed on environment errors [found via pr-review skill, 2026-08-11]"
+# All three used to fail *open* (exit 0, commit silently allowed, scan
+# skipped) on an environment error -- the same anti-pattern git-safety.sh's
+# own bare-push fix exists to prevent, just not carried over to this
+# sibling hook when it was added in the same PR.
+
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input 'git commit -m test')" \
+  | CLAUDE_PROJECT_DIR=/nonexistent-dir-xyz "$HOOKS_DIR/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 2 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] unresolvable \$CLAUDE_PROJECT_DIR blocks instead of silently allowing"
+else
+  BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- unresolvable \$CLAUDE_PROJECT_DIR"
+fi
+
+SCD_NO_PATTERNS=$(mktemp -d)
+git -C "$SCD_NO_PATTERNS" init -q
+git -C "$SCD_NO_PATTERNS" config user.email "test@example.com"
+git -C "$SCD_NO_PATTERNS" config user.name "Test"
+mkdir -p "$SCD_NO_PATTERNS/.claude/hooks"
+cp "$HOOKS_DIR/$H" "$SCD_NO_PATTERNS/.claude/hooks/$H"
+# Deliberately no lib/dangerous-code-patterns.txt under $SCD_NO_PATTERNS.
+printf '%s\n' 'x = 1' > "$SCD_NO_PATTERNS/f.py"
+git -C "$SCD_NO_PATTERNS" add f.py >/dev/null 2>&1
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input 'git commit -m test')" \
+  | CLAUDE_PROJECT_DIR="$SCD_NO_PATTERNS" "$SCD_NO_PATTERNS/.claude/hooks/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 2 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] missing pattern file blocks instead of silently allowing"
+else
+  BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- missing pattern file"
+fi
+rm -rf "$SCD_NO_PATTERNS"
+
+# `git diff --cached` erroring (not just "nothing staged") used to look
+# identical to a clean pass, since its stderr was discarded and its exit
+# code was never checked. Reproduced portably the same way as
+# git-safety.sh's "fail closed on git error" section above: point
+# $CLAUDE_PROJECT_DIR at a directory that exists but isn't a git repo at
+# all, which fails `git diff` the same way a corrupted/dubious-ownership
+# repo would, without needing Docker.
+SCD_NOT_A_REPO=$(mktemp -d)
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input 'git commit -m test')" \
+  | CLAUDE_PROJECT_DIR="$SCD_NOT_A_REPO" "$HOOKS_DIR/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 2 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] 'git diff --cached' erroring blocks instead of reading as 'nothing staged'"
+else
+  BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- 'git diff --cached' erroring"
+fi
+rm -rf "$SCD_NOT_A_REPO"
+
+section "scan-commit-diff.sh -- git commit -a/--all bypass [found via pr-review skill, 2026-08-11]"
+# `git commit -a` auto-stages tracked modifications as part of the commit
+# itself -- at PreToolUse time those changes are unstaged, so scanning only
+# `--cached` missed them entirely. Fixed by switching to `git diff HEAD`
+# (staged + unstaged) whenever -a/--all is detected in the command text.
+
+scd_a_case() {
+  local desc="$1" expected="$2" command="$3" stage="$4"
+  TOTAL=$((TOTAL + 1))
+  local d
+  d=$(mktemp -d)
+  git -C "$d" init -q
+  git -C "$d" config user.email t@e.com
+  git -C "$d" config user.name T
+  printf 'safe = 1\n' > "$d/f.py"
+  git -C "$d" add f.py >/dev/null 2>&1
+  git -C "$d" commit -q -m init >/dev/null 2>&1
+  printf 'x = eval(user_input)\n' > "$d/f.py"
+  [[ "$stage" == "staged" ]] && git -C "$d" add f.py >/dev/null 2>&1
+  local code
+  echo "$(bash_input "$command")" \
+    | CLAUDE_PROJECT_DIR="$d" "$HOOKS_DIR/$H" >/dev/null 2>&1
+  code=$?
+  rm -rf "$d"
+  if [[ "$expected" == "block" && "$code" -eq 2 ]] || [[ "$expected" == "allow" && "$code" -eq 0 ]]; then
+    PASS=$((PASS + 1)); echo "  PASS       [$H] $desc"
+  elif [[ "$expected" == "block" ]]; then
+    BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- $desc"
+  else
+    FALSE_POS=$((FALSE_POS + 1)); echo "  FALSE-POS  [$H] expected allow, got exit $code -- $desc"
+  fi
+}
+
+scd_a_case "git commit -a with dangerous unstaged tracked content is blocked" \
+  block "git commit -am test" unstaged
+scd_a_case "git commit --all (long form) with dangerous unstaged content is blocked" \
+  block "git commit --all -m test" unstaged
+scd_a_case "normal (non -a) commit with dangerous content actually staged still blocks" \
+  block "git commit -m test" staged
+rm -rf "$SCD_NOT_A_REPO"
+
+section "scan-commit-diff.sh -- git commit <pathspec> bypass [found via pr-review skill / CodeRabbit review, 2026-08-13]"
+# Same root issue as -a/--all above (a pathspec commits unstaged tracked
+# content too), via a bare filename instead of a flag. Fixed with a
+# best-effort heuristic: strip -m/--message's value and known no-value
+# flags, and if anything's left over, treat it as a possible pathspec.
+scd_a_case "bare pathspec (git commit f.py) with dangerous unstaged content is blocked" \
+  block "git commit f.py" unstaged
+scd_a_case "-m plus pathspec (git commit -m msg f.py) with dangerous unstaged content is blocked" \
+  block 'git commit -m "fix" f.py' unstaged
+scd_a_case "plain -m with an UNQUOTED single-word message is not mistaken for a pathspec" \
+  allow "git commit -m test" unstaged
+scd_a_case "heredoc message (this project's own git-commit convention) is not mistaken for a pathspec" \
+  allow 'git commit -m "$(cat <<'"'"'EOF'"'"'
+feat(x): something
+EOF
+)"' unstaged
+scd_a_case "heredoc message body containing a parenthesis is still not mistaken for a pathspec" \
+  allow 'git commit -m "$(cat <<'"'"'EOF'"'"'
+fix(x): correct behavior (see PR #3)
+EOF
+)"' unstaged
+scd_a_case "heredoc message with a real trailing pathspec is caught [found via pr-watch skill / CodeRabbit review, 2026-08-14]" \
+  block 'git commit -m "$(cat <<'"'"'EOF'"'"'
+some heredoc message
+EOF
+)" f.py' unstaged
 
 # =========================================================================
 section "scan-fetched-content-for-injection.sh"

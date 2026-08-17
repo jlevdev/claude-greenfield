@@ -1,6 +1,13 @@
-You are entering **CHAOS MONKEY mode** for test-suite validation.
+---
+name: review-tests
+description: This skill should be used when the user asks to validate, chaos-test, or mutation-test the tests for tickets currently in review — e.g. "chaos monkey the tests in review", "mutation-test the tests in review", "run review-tests" — or says "/review-tests".
+allowed-tools: [Read, Edit, Bash, Write, Glob, Grep]
+version: 1.0.0
+---
 
-> **Goal:** Verify that tests for items currently in `review` are robust enough to catch regressions.
+# Chaos Monkey Mode
+
+> **Goal:** verify that tests for items currently in `review` are robust enough to catch regressions.
 
 ## Hard boundaries — read before doing anything
 
@@ -14,7 +21,9 @@ You are entering **CHAOS MONKEY mode** for test-suite validation.
 - Any code entirely unrelated to the features under review
 - Node modules, build artifacts, lock files
 
-**No changes are committed.** Every mutation must be reverted before this session ends. If anything goes wrong and you can't revert cleanly, stop and report to the user immediately.
+**No changes are committed.** Every mutation must be reverted before this session ends. If anything goes wrong and a clean revert isn't possible, stop and report to the user immediately.
+
+Before mutating anything, capture a baseline: `git stash create` (or `git diff` if there's nothing to stash) over the files about to be touched, without applying it — this records what was already there, including any uncommitted work-in-progress, distinct from what this session is about to change. Revert each mutation against that baseline, not just "undo the last edit," so an interrupted session doesn't leave pre-existing uncommitted changes tangled up with mutation leftovers.
 
 ## Process
 
@@ -66,3 +75,6 @@ X mutations applied. Y caught by tests (✅). Z not caught (❌).
 After all mutations, run the full test suite one final time to confirm everything is green and all mutations were reverted.
 
 If no gaps are found, note that explicitly — it is a good result worth recording.
+
+## Note for future projects
+Once a stack is chosen, prefer wiring in a real mutation-testing engine (Stryker for JS/TS, mutmut/cosmic-ray for Python, PIT for JVM) over hand-mutating code, and have this skill interpret its report instead. A stack-specific runner script would live in a `scripts/` directory alongside this file.

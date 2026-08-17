@@ -1,4 +1,11 @@
-Create a new branch following project naming conventions.
+---
+allowed-tools: Bash(git branch:*), Bash(git checkout:*), Bash(git status:*)
+description: Create a new branch following project naming conventions
+---
+
+## Context
+- Current branch: !`git branch --show-current`
+- Existing local branches: !`git branch --list`
 
 ## Naming conventions
 | Branch type | Pattern | Example |
@@ -14,7 +21,7 @@ Create a new branch following project naming conventions.
 ## Steps
 1. Identify the branch type from context (ticket ID, user description).
 2. Generate the slug from the ticket title or user description — keep it concise.
-3. Check if the branch already exists: `git branch --list <name>`
+3. Check the existing branches listed above for a name collision.
 4. Create and switch: `git checkout -b <branch-name>`
 5. Confirm the branch was created and show the full name.
 

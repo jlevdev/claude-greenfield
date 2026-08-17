@@ -69,11 +69,45 @@ git add .
 git commit -m "chore: initialize project from template"
 ```
 
+### 3f. Optional MCP servers
+Two MCP servers are commonly worth wiring up once the stack is known — offer them, don't assume:
+
+- **GitHub MCP** (only if GitHub was chosen as the git platform in Step 2): lets Claude create/manage issues and PRs and search the repo directly via MCP tools instead of shelling out to `gh` for everything. Requires a `GITHUB_PERSONAL_ACCESS_TOKEN` environment variable (a fine-grained PAT scoped to this repo — contents, pull requests, and issues permissions — is enough).
+- **Context7 MCP**: live documentation lookup for whatever libraries ended up in the tech stack, instead of relying on training data that can be stale or hallucinate APIs. Works anonymously with a shared rate limit, or with an optional `CONTEXT7_API_KEY` for a dedicated quota.
+
+If the user wants either, write `.mcp.json` at the project root, including only the servers they opted into:
+
+```json
+{
+  "mcpServers": {
+    "github": {
+      "type": "http",
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": { "Authorization": "Bearer ${GITHUB_PERSONAL_ACCESS_TOKEN}" }
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": { "Authorization": "${CONTEXT7_API_KEY:-}" }
+    }
+  }
+}
+```
+
+`.mcp.json` is project-scoped and gets checked into git so the whole team gets the same servers automatically — never put a literal token in it, only the `${VAR}` reference. Document whichever environment variables are actually required in `CLAUDE.md` under a new `## MCP Servers` section so the next person (or agent) knows to set them before the server will connect.
+
+Step 3e's init commit already ran before this step, so `.mcp.json` (and the `CLAUDE.md` update above) are untracked at this point if either was created — commit them now:
+```bash
+git add .mcp.json CLAUDE.md
+git commit -m "chore: configure MCP servers"
+```
+
 ## Step 4 — Walk the user through it
 Summarize what was created:
 - PRD location and key decisions recorded
 - Ticket count and a quick list of feat-1 through feat-N titles
 - First recommended sprint (which tickets to tackle first)
+- Any MCP servers wired up (and which environment variables still need to be set before they'll connect)
 - Any open questions still outstanding
 
 Ask if anything needs adjustment before implementation begins. If there are open questions in `questions/open/`, remind the user to answer them before those tickets can be implemented.

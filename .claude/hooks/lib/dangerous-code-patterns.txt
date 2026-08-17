@@ -1,0 +1,25 @@
+# Extended-regex patterns checked against *added* lines in a staged diff by
+# scan-commit-diff.sh. One pattern per line, format:
+#   <grep -E pattern> ::: <reason shown in the block message>
+# Blank lines and lines starting with # are ignored. This is a deterministic
+# first-pass net (regex, not data-flow analysis) -- see scan-commit-diff.sh
+# for what it does and doesn't catch. Extend this list once a stack is
+# chosen; these are deliberately language-spanning starting points, not a
+# complete set for any one ecosystem.
+
+\beval\( ::: eval() on dynamic input enables arbitrary code execution
+\bexec\( ::: exec() on dynamic input enables arbitrary code execution
+pickle\.load\( ::: unsafe deserialization of untrusted data
+yaml\.load\( ::: yaml.load() without a safe loader can execute arbitrary code -- use yaml.safe_load() or Loader=yaml.SafeLoader
+subprocess\.\w+\(.*shell\s*=\s*True ::: shell=True with any dynamic input risks shell injection
+os\.system\( ::: os.system() risks shell injection -- prefer subprocess with an argument list
+child_process\.exec\( ::: Node child_process.exec() with untrusted input risks shell injection -- prefer execFile with an argument array
+\.innerHTML\s*= ::: assigning to innerHTML risks XSS -- sanitize or use textContent
+dangerouslySetInnerHTML ::: bypasses React's XSS protection -- confirm the content is sanitized
+document\.write\( ::: document.write() is an XSS-prone legacy API
+-----BEGIN[A-Z ]*PRIVATE KEY----- ::: looks like an embedded private key
+AKIA[0-9A-Z]{16} ::: looks like an AWS access key ID
+\bnew Function\( ::: the Function() constructor on dynamic input enables arbitrary code execution
+verify\s*=\s*False ::: disables TLS certificate verification
+rejectUnauthorized\s*:\s*false ::: disables TLS certificate verification
+weights_only\s*=\s*False ::: torch.load with weights_only=False allows unsafe deserialization

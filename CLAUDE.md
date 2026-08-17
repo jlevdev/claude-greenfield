@@ -100,24 +100,49 @@ Templates are in `templates/`.
 
 1. Tickets are written in `todo`
 2. `/implement feat-N` moves them to `in-progress` and builds with TDD
-3. When done, Claude moves them to `review`
+3. Before moving to `review`, the `ticket-reviewer`, `silent-failure-hunter`, and `test-coverage-reviewer` subagents check the diff against the ticket's acceptance criteria, error handling, and test coverage — blocking findings get fixed first, notes carry into the ticket summary
 4. Developer reviews; `/review-tests` runs chaos monkey validation
 5. Once accepted, tickets move to `done`
 
-### Available Commands
+### Available Commands & Skills
 
-| Command | What it does |
-|---------|-------------|
-| `/start-project` | Initialize a new project from a blurb — creates PRD, initial tickets, and git repo |
-| `/research` | Evaluate technology options with prompt-injection awareness and package vetting |
-| `/implement feat-N` | Enter TDD implementation mode for one or more tickets |
-| `/describe feat-N` | Summarize one or more tickets in plain language |
-| `/whats-next` | Overview of all in-progress and todo work |
-| `/review-tests` | Chaos monkey validation of tests for items in review |
-| `/git-commit` | Stage and commit with conventional commit message |
-| `/git-branch` | Create a branch following naming conventions |
-| `/git-pr` | Open a pull request or merge request |
-| `/deploy` | Pre-deploy checklist and deployment execution |
+Both are invoked the same way (`/name`). Skills additionally auto-trigger from plain-language requests (e.g. "what should I work on next" fires `whats-next` without typing the slash command), support progressive disclosure via a `references/` directory so detail loads only when needed, and can scope down tool access per mode via `allowed-tools`. Commands stay commands where that auto-trigger behavior isn't wanted (deliberate, one-shot, or purely mechanical actions).
+
+| Name | Type | What it does |
+|------|------|-------------|
+| `/start-project` | command | Initialize a new project from a blurb — creates PRD, initial tickets, and git repo |
+| `/research` | skill (`.claude/skills/research/`) | Evaluate technology options with prompt-injection awareness and package vetting |
+| `/implement feat-N` | skill (`.claude/skills/implement/`) | Enter TDD implementation mode for one or more tickets |
+| `/describe feat-N` | skill (`.claude/skills/describe/`) | Summarize one or more tickets in plain language |
+| `/whats-next` | skill (`.claude/skills/whats-next/`) | Overview of all in-progress and todo work |
+| `/review-tests` | skill (`.claude/skills/review-tests/`) | Chaos monkey validation of tests for items in review |
+| `/pr-review [PR\|branch]` | skill (`.claude/skills/pr-review/`) | Read-only, severity-tagged review of a finished PR via parallel subagents — see below |
+| `/pr-watch [PR\|branch] [reset]` | skill (`.claude/skills/pr-watch/`) | Walks every unresolved comment and merge-blocking condition one at a time via `AskUserQuestion`, with a recommendation for each, until the PR has nothing outstanding — see below |
+| `/git-commit` | command | Stage and commit with conventional commit message |
+| `/git-branch` | command | Create a branch following naming conventions |
+| `/git-pr` | command | Open a pull request or merge request |
+| `/git-clean` | command | Delete local branches/worktrees whose remote is gone |
+| `/git-ship` | command | Branch (if needed), commit, push, and open a PR in one step |
+| `/deploy` | command | Pre-deploy checklist and deployment execution |
+
+### Reviewer Subagents
+
+Defined in `.claude/agents/`, invoked automatically (by `implement`'s reviewer gate and/or `pr-review` — see below) and callable manually:
+
+| Agent | Checks | Used by |
+|-------|--------|---------|
+| `ticket-reviewer` | Implementation against a ticket's acceptance criteria; scope creep; unmet dependencies | `implement` (always); `pr-review` (only if the PR references ticket IDs) |
+| `test-coverage-reviewer` | Behavioral test coverage against acceptance criteria (completeness — distinct from `review-tests`' mutation-based robustness check) | `implement` (always); `pr-review` (only if the PR references ticket IDs) |
+| `silent-failure-hunter` | Swallowed errors, overly broad catch blocks, unexplained fallbacks | `implement`; `pr-review` (always — no ticket required) |
+| `pr-correctness-reviewer` | General bugs and `CLAUDE.md` compliance, confidence-scored (≥50 reported) | `pr-review` (always — no ticket required) |
+
+`implement`'s reviewer gate and the `pr-review` skill are not the same thing: the gate runs mid-development, blocking, on one ticket's diff, before it reaches `review/`. `pr-review` runs read-only on a finished PR — anyone's — after the fact, and never blocks anything. See `research/2026-08-11-pr-review-skill-design.md` for the design rationale.
+
+`pr-watch` is a third, distinct thing from both: not analysis (that's `pr-review`) and not passive monitoring — it works through what's already open on a PR (review threads, top-level comments, and merge-blocking conditions like conflicts, failing CI, or changes-requested) one item at a time, forms its own recommendation for each rather than trusting a reviewer's claim outright, and asks via `AskUserQuestion`. It's interactive by design, not a fit for unattended `/loop` use. State — which items have already been surfaced, so a re-run doesn't re-ask about something already decided — lives locally per PR at `.claude/pr-watch-state/` (gitignored); pass `reset` to clear it.
+
+### MCP Servers
+
+None configured in the template itself. `/start-project` offers to wire up GitHub (issue/PR management) and Context7 (live docs lookup) once the tech stack and git platform are known — see its "Optional MCP servers" step. When added, servers live in a project-root `.mcp.json` and required environment variables get documented in a `## MCP Servers` section here.
 
 ---
 

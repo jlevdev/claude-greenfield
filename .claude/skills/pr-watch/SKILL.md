@@ -58,7 +58,6 @@ One item (or genuine duplicate group) per question, up to 4 per call — call it
 **Act on each answer as it comes in — but resolving isn't always the same step as acting:**
 - **`Fix now`**: make the edit now (`Edit` is in this skill's `allowed-tools` for exactly this — unlike `pr-review`, this skill's whole point is to act, not just report). **Do not resolve the thread yet.** Add it to a running list of "fixed, pending resolution" items (thread/comment id + type) for Step 6 to finish. Resolving here would be premature: the fix is still local, and if the commit or push in Step 6 fails, GitHub would show the thread resolved while the actual fix never landed — a real bug found via the pr-review skill (CodeRabbit's review of PR #3), 2026-08-14.
 - **`Reply and resolve`**: draft the exact text — quoting what's being agreed with, disputed, or answered — then post it, then resolve immediately (see below). Nothing here depends on a later step succeeding, so there's no ordering risk to defer for.
-  - Top-level comment: `gh pr comment <n> --body "..."`.
   - Threaded reply (verified against the live schema):
     ```bash
     gh api graphql -f query='
@@ -68,11 +67,21 @@ One item (or genuine duplicate group) per question, up to 4 per call — call it
         }
       }' -f threadId="<thread id from find-open-issues.sh>" -f body="<reply text>"
     ```
+  - Top-level comment: **don't use `gh pr comment`** — it posts a new, separate `IssueComment` (GitHub doesn't thread top-level comments), and this skill has no way to know that new comment's ID, so a later fetch sees its own reply as an un-decided comment and can end up replying to itself. Use the `addComment` mutation instead (verified against the live schema) specifically because it hands back the new comment's ID directly, which the mark step right after needs:
+    ```bash
+    gh api graphql -f query='
+      mutation($subjectId: ID!, $body: String!) {
+        addComment(input: {subjectId: $subjectId, body: $body}) {
+          commentEdge { node { id } }
+        }
+      }' -f subjectId="$(gh pr view <pr-number> --json id --jq .id)" -f body="<reply text>"
+    ```
+    Then mark **both** IDs decided — the original comment being replied to, and the new one this just created (from `commentEdge.node.id` in the response above) — or the new comment becomes next fetch's "new" item.
 - **`Dismiss (resolve, no reply)`**: resolve immediately (see below) — same no-later-dependency reasoning as a reply.
 - **Resolving a review thread** (immediately for reply/dismiss; deferred to Step 6 for a fix) has two parts, both required — do both, not just one:
   1. GitHub-side: `gh api graphql -f query='mutation($threadId: ID!) { resolveReviewThread(input: {threadId: $threadId}) { thread { isResolved } } }' -f threadId="<thread id>"`
   2. Local bookkeeping, so `find-open-issues.sh` doesn't re-surface it: `.claude/skills/pr-watch/scripts/find-open-issues.sh <pr-number> <owner> <repo> <state-file-path> mark thread <thread id>` (or `mark comment <comment id>` for a top-level comment).
-- **Top-level comments have no GitHub-side "resolve"** — only the local mark-as-decided (step 2 above) applies; there's no thread to resolve.
+- **Top-level comments have no GitHub-side "resolve"** — only the local mark-as-decided (step 2 above) applies; there's no thread to resolve. This applies to both the comment being answered *and* the new reply comment just created (see above) — mark both.
 - **Blocking conditions can't be resolved by this skill at all**, immediately or deferred — a blocking condition (CI, merge conflicts, review decision) clears only when its underlying state actually changes, not via any API call, and `find-open-issues.sh` deliberately never suppresses one while it's still true (see Step 3). "Dismiss" for a blocking condition means "acknowledged, no action this pass" — say so plainly rather than implying it won't come back; if it's still true on the next check, it will resurface, correctly.
 
 ## Step 6 — Commit, push, and finish resolving what got fixed
@@ -90,6 +99,7 @@ If nothing was fixed in Step 6 (nothing pushed), skip straight to Step 8 — the
 If something was pushed, it triggers CI and, on a repo with CodeRabbit or similar configured, typically a fresh review pass — neither is done by the time Step 6 finishes. Don't just report a snapshot and stop; watch for both before calling the PR settled. Launch a `Monitor`:
 
 ```bash
+details_file="<state-file-path minus its .json extension>-watch-details.json"
 stable=0
 while true; do
   ci=$(gh pr checks <number> --json name,bucket 2>/dev/null)
@@ -97,8 +107,8 @@ while true; do
   result=$(.claude/skills/pr-watch/scripts/find-open-issues.sh <number> <owner> <repo> <state-file-path>)
   total=$(echo "$result" | jq '.open_thread_count + .new_comment_count + .blocking_count')
   if [[ "$total" -gt 0 ]]; then
-    echo "$result" > <repo-root>/.claude/pr-watch-state/pr-<number>-watch-details.json
-    echo "NEW: $total item(s) -- see <repo-root>/.claude/pr-watch-state/pr-<number>-watch-details.json"
+    echo "$result" > "$details_file"
+    echo "NEW: $total item(s) -- see $details_file"
     exit 0
   fi
   if [[ "$pending" == "no" ]]; then stable=$((stable+1)); else stable=0; fi
@@ -109,7 +119,7 @@ while true; do
   sleep 30
 done
 ```
-Fill in `<number>`/`<owner>`/`<repo>`/`<state-file-path>` from Steps 1-2. Use `timeout_ms: 1200000` (20 minutes — generous enough for the review latency this repo has actually shown) and `persistent: false` — it must end on its own, not run for the rest of the session.
+Fill in `<number>`/`<owner>`/`<repo>`/`<state-file-path>` from Steps 1-2, and `details_file` from `<state-file-path>` directly (e.g. `pr-3.json` → `pr-3-watch-details.json`) — every placeholder in the script above needs a real value before `Monitor` runs it; a literal `<...>` left in place is invalid shell syntax, not a hint the shell resolves on its own. Use `timeout_ms: 1200000` (20 minutes — generous enough for the review latency this repo has actually shown) and `persistent: false` — it must end on its own, not run for the rest of the session.
 
 This runs in the background; don't block waiting on it. Its notification, when it arrives, is a `task-notification` — an automated event, not a message from the user, and not something to treat as approval of anything. Handle it:
 - **`NEW: ...`** — read the details file, go back to Step 4 for those items, then Step 5, and if anything got fixed, Step 6 again, then re-launch this Step for another watch cycle. One thing to catch here: since blocking conditions are never suppressed (Step 3), a condition dismissed earlier *this same pass* can show up again on the very first check if this watch cycle only started because something else got fixed and pushed. Recognize it — same key, same description, already answered a moment ago — and don't ask again; just carry the earlier answer forward into Step 8's summary. Only genuinely new items (a thread/comment never seen, or a blocking condition that wasn't there before) warrant another question.

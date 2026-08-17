@@ -122,7 +122,15 @@ while true; do
       }' -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUM" -f cursor="$CURSOR" \
       --jq '.data.repository.pullRequest.reviewThreads')
   fi
-  THREADS=$(jq -cn --argjson prev "$THREADS" --argjson page "$PAGE" '$prev + $page.nodes')
+  # `--argjson` passes its value as a single command-line argument, which
+  # Linux caps around 128KB (MAX_ARG_STRLEN) regardless of the much
+  # larger overall ARG_MAX -- a PR with many/large review comments (this
+  # one, after a few rounds of CodeRabbit review, comfortably exceeds it)
+  # blew this up with "Argument list too long". `--slurpfile` reads via
+  # file I/O instead, with no such per-argument limit. Real bug found
+  # live, immediately after the previous fix that introduced it, when
+  # this script was run again as part of the same pr-watch pass.
+  THREADS=$(jq --slurpfile page <(printf '%s' "$PAGE") '. + $page[0].nodes' <<< "$THREADS")
   HAS_NEXT=$(jq -r '.pageInfo.hasNextPage' <<< "$PAGE")
   [[ "$HAS_NEXT" != "true" ]] && break
   CURSOR=$(jq -r '.pageInfo.endCursor' <<< "$PAGE")
@@ -160,12 +168,23 @@ BLOCKING=$(jq -c '
              else [] end)
 ' <<< "$CORE")
 
+# Same MAX_ARG_STRLEN reasoning as the pagination merge above --
+# $open_threads in particular can hold full comment bodies for every
+# currently-open thread and has already been observed exceeding 128KB
+# on this PR mid-review. `--slurpfile` for anything that could be more
+# than a few KB; plain `--argjson` is fine only for genuinely small,
+# bounded values (there are none of those left in this call).
 jq -n \
-  --argjson core "$CORE" \
-  --argjson open_threads "$OPEN_THREADS" \
-  --argjson new_comments "$NEW_COMMENTS" \
-  --argjson blocking "$BLOCKING" \
-  '{
+  --slurpfile core <(printf '%s' "$CORE") \
+  --slurpfile open_threads <(printf '%s' "$OPEN_THREADS") \
+  --slurpfile new_comments <(printf '%s' "$NEW_COMMENTS") \
+  --slurpfile blocking <(printf '%s' "$BLOCKING") \
+  '
+  ($core[0]) as $core |
+  ($open_threads[0]) as $open_threads |
+  ($new_comments[0]) as $new_comments |
+  ($blocking[0]) as $blocking |
+  {
     title: $core.title,
     url: $core.url,
     state: $core.state,

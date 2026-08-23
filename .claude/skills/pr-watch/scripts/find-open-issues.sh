@@ -139,16 +139,16 @@ done
 DECIDED_THREADS=$(jq -c '.decided_thread_ids' <<< "$STATE")
 DECIDED_COMMENTS=$(jq -c '.decided_comment_ids' <<< "$STATE")
 
-OPEN_THREADS=$(jq -c --argjson decided "$DECIDED_THREADS" '
+OPEN_THREADS=$(jq -c --slurpfile decided <(printf '%s' "$DECIDED_THREADS") '
   [.[] | select(.isResolved == false)
-       | select(.id as $id | $decided | index($id) == null)
+       | select(.id as $id | $decided[0] | index($id) == null)
        | {id, path: .comments.nodes[0].path, line: .comments.nodes[0].line,
           author: .comments.nodes[0].author.login, body: .comments.nodes[0].body,
           replyCount: (.comments.nodes | length)}]
 ' <<< "$THREADS")
 
-NEW_COMMENTS=$(jq -c --argjson decided "$DECIDED_COMMENTS" '
-  [.comments[] | select(.id as $id | $decided | index($id) == null)
+NEW_COMMENTS=$(jq -c --slurpfile decided <(printf '%s' "$DECIDED_COMMENTS") '
+  [.comments[] | select(.id as $id | $decided[0] | index($id) == null)
                | {id, author: .author.login, body}]
 ' <<< "$CORE")
 

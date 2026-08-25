@@ -62,6 +62,9 @@ Fill in:
 ### 3d-ii. Open questions (questions/open/)
 Any questions that came up during the PRD discussion that remain unanswered and block specific tickets should be written to `questions/open/` using `templates/question.md`. Name files `q-1-<slug>.md`, `q-2-<slug>.md`, etc. Link each question to the ticket(s) it blocks in the `blocks` field. Do not create question files for questions that were answered during the conversation — only for those that need external input or a decision the user hasn't made yet.
 
+### 3d-iii. Decision log and changelog (repo root)
+Copy `templates/DECISIONS.md` to `DECISIONS.md` and `templates/CHANGELOG.md` to `CHANGELOG.md` at the project root, unmodified — both are tool-maintained from here on (`research` and `implement` append ADR entries to `DECISIONS.md`; `/git-clean` appends shipped-ticket entries to `CHANGELOG.md` as tickets merge). If any tech-stack decisions were already settled during Step 3a's research, add those as the first ADR entries in `DECISIONS.md` now rather than waiting for a future `/research` invocation to record them retroactively. `CLAUDE.md` already links both files from its "Key Decisions"/"Recent Changes" sections — this step is what makes those links resolve to something instead of a 404.
+
 ### 3e. Initialize git
 ```bash
 git init
@@ -105,6 +108,7 @@ git commit -m "chore: configure MCP servers"
 ## Step 4 — Walk the user through it
 Summarize what was created:
 - PRD location and key decisions recorded
+- `DECISIONS.md`/`CHANGELOG.md` initialized, and any ADR entries already recorded from Step 3a
 - Ticket count and a quick list of feat-1 through feat-N titles
 - First recommended sprint (which tickets to tackle first)
 - Any MCP servers wired up (and which environment variables still need to be set before they'll connect)

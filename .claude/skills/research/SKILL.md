@@ -60,7 +60,7 @@ If it qualifies:
 1. Check whether `DECISIONS.md` exists at the project root. If it doesn't yet (e.g. `start-project` hasn't run, or this predates that step), stop here and just note in the summary that this decision should be added once `DECISIONS.md` exists — don't create the file yourself; that's `start-project`'s job from `templates/DECISIONS.md`, and creating a bare one here would skip its structure.
 2. Draft the ADR entry using the `### [ADR-N] Decision title` template already in `DECISIONS.md` (next `N` = highest existing `ADR-` number + 1, or 1 if none yet). Fill Context from Step 1's question and Step 3's evaluation, Decision from Step 6's recommendation, Consequences from the trade-offs already surfaced.
 3. Show the drafted entry and ask via `AskUserQuestion` whether to add it, with options `Add to DECISIONS.md` (recommended), `Skip this one`, and `Edit first` (if chosen, revise based on feedback and ask again).
-4. On confirmation, append it to `DECISIONS.md` under the existing entries — never overwrite prior ADRs, and never renumber or edit one that's already there even if this decision supersedes it (mark the old one `Status: Superseded by ADR-N` instead, per the template).
+4. On confirmation, append it to `DECISIONS.md` under the existing entries — never overwrite, renumber, or rewrite the content of a prior ADR. The one allowed exception: if this decision supersedes an earlier one, update only that earlier entry's `Status:` line to `Superseded by ADR-N` (per the template) — leave everything else about it untouched.
 
 ## What research mode is not
 - It is not a mandate to use the newest or most-hyped tool

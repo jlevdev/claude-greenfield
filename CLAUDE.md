@@ -96,13 +96,20 @@ tickets/
 
 Templates are in `templates/`.
 
+### Living Documents
+
+`DECISIONS.md` and `CHANGELOG.md` (repo root, created from `templates/` by `/start-project`) are tool-maintained — hand-editing them still works, but it isn't the default way they get updated:
+
+- **`DECISIONS.md`** gets a new ADR entry from `/research` (Step 7, when a research conclusion sets or changes a real architectural/product decision) and from `/implement` (end of a ticket, only if that ticket's work involved a decision not obvious from the code). Both draft the entry and confirm with the user via `AskUserQuestion` before appending — this file stays curated, not a firehose.
+- **`CHANGELOG.md`** gets an entry from `/git-clean`, which closes out any tickets a newly-merged branch shipped (moving them `review/` → `done/`) and appends a summary line automatically, no confirmation needed — it's a mechanical record of a merge that already happened.
+
 ### Sprint Flow
 
 1. Tickets are written in `todo`
 2. `/implement feat-N` moves them to `in-progress` and builds with TDD
 3. Before moving to `review`, the `ticket-reviewer`, `silent-failure-hunter`, and `test-coverage-reviewer` subagents check the diff against the ticket's acceptance criteria, error handling, and test coverage — blocking findings get fixed first, notes carry into the ticket summary
 4. Developer reviews; `/review-tests` runs chaos monkey validation
-5. Once accepted, tickets move to `done`
+5. Once the PR is accepted and merged, `/git-clean` moves the ticket to `done` and logs it in `CHANGELOG.md`
 
 ### Available Commands & Skills
 
@@ -121,7 +128,7 @@ Both are invoked the same way (`/name`). Skills additionally auto-trigger from p
 | `/git-commit` | command | Stage and commit with conventional commit message |
 | `/git-branch` | command | Create a branch following naming conventions |
 | `/git-pr` | command | Open a pull request or merge request |
-| `/git-clean` | command | Delete local branches/worktrees whose remote is gone |
+| `/git-clean` | command | Delete local branches/worktrees whose remote is gone; close out any tickets that branch shipped (`review/` → `done/`, logged to `CHANGELOG.md`) |
 | `/git-ship` | command | Branch (if needed), commit, push, and open a PR in one step |
 | `/deploy` | command | Pre-deploy checklist and deployment execution |
 

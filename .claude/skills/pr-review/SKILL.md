@@ -3,7 +3,7 @@ name: pr-review
 description: This skill should be used when the user asks to review a pull request, review a PR, review this branch before merging, get a second opinion on a PR, or says "/pr-review". Runs a read-only, severity-tagged review using parallel specialized subagents and existing PR comments, then walks the user through each finding as a multi-choice decision; never edits code, approves, merges, or posts PR comments without an explicit per-finding choice to do so.
 argument-hint: <PR number or branch (optional — defaults to the current branch's PR)>
 allowed-tools: [Read, Grep, Glob, Agent, AskUserQuestion, "Bash(gh pr view:*)", "Bash(gh pr diff:*)", "Bash(gh pr comment:*)", "Bash(gh pr review --comment:*)", "Bash(gh api repos/*/pulls/*/reviews:*)", "Bash(gh api repos/*/pulls/*/comments:*)", "Bash(git log:*)", "Bash(git diff:*)"]
-version: 1.4.0
+version: 1.5.0
 ---
 
 # PR Review
@@ -95,7 +95,7 @@ Don't ask one open-ended "what do you want to do with these" question. Walk the 
 
 **Act on the answers, batched by action, not one tool call per answer:**
 - `Fix now` selections: make the edits. This is the one place this skill temporarily needs `Edit`/`Write` — those aren't in this skill's `allowed-tools`, so the normal permission prompt fires here; that's intentional; don't treat it as a blocker to work around.
-- `Post as PR comment` selections: draft the comment text for all of them, show the draft, then post. `gh pr comment`/`gh pr review --comment` only post general, top-level comments — neither has a flag for a line-anchored inline comment (verified: no `gh` CLI option exists for this). For findings anchored to a specific `file:line`, batch them into one `gh api repos/{owner}/{repo}/pulls/<number>/reviews` call instead, with a `comments` array of `{path, line, side, body}` objects — one API call posting all of them as a single review, not one call per finding.
+- `Post as PR comment` selections: draft the comment text for all of them, show the draft, then post using the exact command shape in `references/posting-comments.md` (read it now — it covers both the general top-level case and the file:line-anchored case, and why `gh pr comment` alone isn't enough for the latter).
 - `Leave as-is` / `Not a real issue`: no action; note the outcome in a final one-line summary of what was decided.
 
 If the PR looks like it needs deeper, whole-codebase-context analysis than a local diff review can give, mention `/code-review ultra` as an option in the wrap-up rather than running it.

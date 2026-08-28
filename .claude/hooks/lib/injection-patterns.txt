@@ -1,9 +1,16 @@
 # Extended-regex patterns (grep -Eio), one per line, checked against the
-# raw tool-result payload from WebFetch/WebSearch by
-# scan-fetched-content-for-injection.sh. Non-exhaustive on purpose — this
-# is a heuristic tripwire that complements the model's own judgment (see
-# CLAUDE.md's "Prompt injection" research standard), not a replacement
-# for it. Add phrasings here as you encounter new ones worth flagging.
+# raw tool-result payload from WebFetch/WebSearch (and gh-fetched PR/issue
+# content run via Bash) by scan-fetched-content-for-injection.sh.
+# Non-exhaustive on purpose — this is a heuristic tripwire that
+# complements the model's own judgment (see CLAUDE.md's "Prompt injection"
+# research standard), not a replacement for it.
+#
+# This is the CORE tier: reviewed, PR'd, covered by
+# .claude/hooks/tests/bypass-test.sh. There's also a SHARED tier at
+# ~/.claude/shared/injection-patterns.txt (machine-level, not in this
+# repo) for patterns caught live across any project on this machine,
+# merged in by the hook at scan time. See lib/README.md for how the two
+# relate and when a shared-tier entry should graduate to this file.
 
 ignore (all|any|the) (previous|prior|above) instructions
 disregard (all|any|the) (previous|prior|above) instructions

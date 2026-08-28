@@ -79,6 +79,26 @@
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh pr view:*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr diff:*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh api:*)",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+          }
+        ]
       }
     ]
   }

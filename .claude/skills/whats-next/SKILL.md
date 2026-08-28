@@ -2,7 +2,8 @@
 name: whats-next
 description: This skill should be used when the user asks for a status overview, what to work on next, or a sprint summary — e.g. "what's next", "what should I work on", "give me a status update", "what's blocked" — or says "/whats-next".
 allowed-tools: [Read, Glob, Grep]
-version: 1.0.0
+effort: low
+version: 1.1.0
 ---
 
 # What's Next

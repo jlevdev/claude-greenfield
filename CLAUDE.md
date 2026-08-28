@@ -115,6 +115,8 @@ Templates are in `templates/`.
 
 Both are invoked the same way (`/name`). Skills additionally auto-trigger from plain-language requests (e.g. "what should I work on next" fires `whats-next` without typing the slash command), support progressive disclosure via a `references/` directory so detail loads only when needed, and can scope down tool access per mode via `allowed-tools`. Commands stay commands where that auto-trigger behavior isn't wanted (deliberate, one-shot, or purely mechanical actions).
 
+Cost tiering: a skill that's read-only, single-shot, and never calls `AskUserQuestion`/`Agent` (so its whole execution lands inside one turn) can set `effort: low` in its frontmatter — `describe` and `whats-next` do this. A skill that spans multiple turns (asks questions, waits on subagents) won't hold a turn-scoped override for its full run, so this only fits the single-shot case; don't add it to `implement`/`pr-watch`/`research`/`review-tests`/`pr-review`, which all genuinely need full reasoning depth for at least part of their work anyway.
+
 | Name | Type | What it does |
 |------|------|-------------|
 | `/start-project` | command | Initialize a new project from a blurb — creates PRD, initial tickets, and git repo |

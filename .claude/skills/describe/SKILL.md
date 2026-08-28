@@ -3,7 +3,8 @@ name: describe
 description: This skill should be used when the user wants a plain-language summary of one or more tickets — e.g. "describe feat-3", "explain what rem-2 is about", "summarize feat-1 and feat-4" — or says "/describe".
 argument-hint: <feat-N|rem-N> [more ticket IDs...]
 allowed-tools: [Read, Glob, Grep]
-version: 1.0.0
+effort: low
+version: 1.1.0
 ---
 
 # Describe

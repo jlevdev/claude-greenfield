@@ -106,7 +106,7 @@ Templates are in `templates/`.
 ### Sprint Flow
 
 1. Tickets are written in `todo`
-2. `/implement feat-N` moves them to `in-progress` and builds with TDD
+2. `/implement feat-N` moves them to `in-progress` and builds with TDD — offers (doesn't default to) isolating the work in a git worktree first, so a bad TDD cycle stays on a disposable branch
 3. Before moving to `review`, the `ticket-reviewer`, `silent-failure-hunter`, and `test-coverage-reviewer` subagents check the diff against the ticket's acceptance criteria, error handling, and test coverage — blocking findings get fixed first, notes carry into the ticket summary
 4. Developer reviews; `/review-tests` runs chaos monkey validation
 5. Once the PR is accepted and merged, `/git-clean` moves the ticket to `done` and logs it in `CHANGELOG.md`

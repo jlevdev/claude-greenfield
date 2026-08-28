@@ -3,7 +3,7 @@ name: implement
 description: This skill should be used when the user asks to implement, build, or work on one or more tickets — e.g. "implement feat-3", "build rem-2", "let's start on feat-4 and feat-5" — or says "/implement". Enters test-driven implementation mode against this project's ticket workflow.
 argument-hint: <feat-N|rem-N> [more ticket IDs...]
 allowed-tools: [Read, Write, Edit, Bash, Glob, Grep, Agent, AskUserQuestion, EnterWorktree, ExitWorktree]
-version: 1.2.0
+version: 1.2.1
 ---
 
 # Implement Mode
@@ -18,7 +18,15 @@ Build one or more tickets using test-driven development.
    - `tickets/features/{todo,in-progress,on-hold,review,done}/`
    - `tickets/remediation/{todo,in-progress,on-hold,review,done}/`
 4. Check `questions/open/` for any open questions that list this ticket in their `blocks` field. If blocking questions exist, surface them to the user and stop — do not begin implementation until they are answered or explicitly waived.
-5. **Worktree isolation (opt-in).** If the current working directory is already inside a worktree (path contains `.claude/worktrees/`), skip this — already isolated, don't nest one. Otherwise ask via `AskUserQuestion`: *"Implement this in an isolated git worktree?"* — `No, use the current working tree` (recommended default) / `Yes, isolate in a worktree`. If yes, call `EnterWorktree` with `name` set to the ticket ID (or first ticket ID, if several — e.g. `feat-3`) before continuing; everything from here on — file moves, edits, tests, the reviewer-gate subagents in step 6 below, git commands — runs inside that worktree automatically, since it's a session-level directory switch, not something each step has to account for separately. This reduces the blast radius of a bad TDD cycle to a disposable branch instead of the working tree the user is actually looking at. Ask once per invocation, covering every ticket in this batch together, not per ticket.
+5. **Worktree isolation (opt-in).** Check whether the session is already inside a *linked* worktree via git's own metadata, not a path guess — `git rev-parse --git-dir` and `git rev-parse --git-common-dir` are equal in a normal checkout and differ in any linked worktree, regardless of where it lives on disk:
+   ```bash
+   [[ "$(git rev-parse --git-dir 2>/dev/null)" != "$(git rev-parse --git-common-dir 2>/dev/null)" ]] && echo "already in a worktree"
+   ```
+   If already in one, skip this step entirely — don't nest. Otherwise ask via `AskUserQuestion`: *"Implement this in an isolated git worktree?"* — `No, use the current working tree` (recommended default) / `Yes, isolate in a worktree`. If yes:
+   - Call `EnterWorktree` with `name` set to the ticket ID (or first ticket ID, if several — e.g. `feat-3`).
+   - `EnterWorktree` always names the branch `worktree-<name>`, which doesn't match this project's `feat/<id>-<slug>` / `fix/<id>-<slug>` convention (see `git-branch.md`) — immediately rename it to match: `git branch -m <feat-or-fix>/<ticket-filename-stem>` (reuse the ticket file's own `<id>-<slug>` stem — e.g. ticket file `feat-3-user-auth.md` → branch `feat/feat-3-user-auth`; remediation tickets use `fix/` per the same convention). Remember this new name for the closing step below.
+
+   Everything from here on — file moves, edits, tests, the reviewer-gate subagents in step 6 below, git commands — runs inside that worktree automatically, since it's a session-level directory switch, not something each step has to account for separately. This reduces the blast radius of a bad TDD cycle to a disposable branch instead of the working tree the user is actually looking at. Ask once per invocation, covering every ticket in this batch together, not per ticket.
 6. Move each target ticket to the `in-progress` folder.
 7. Scan existing source code to understand current patterns, naming conventions, and architecture.
 
@@ -47,4 +55,6 @@ Build one or more tickets using test-driven development.
 - Confirm the full test suite still passes.
 - List all tickets moved to review.
 - Note any follow-on work or new `rem-N` items discovered during implementation (create tickets for them in `todo` if warranted).
-- **If this session entered a worktree in Pre-flight step 5**, ask via `AskUserQuestion`: *"Keep the worktree (review/push/PR from there — recommended) or remove it?"* — then call `ExitWorktree` with `action: "keep"` or `action: "remove"` accordingly (`remove` needs `discard_changes: true` if anything's uncommitted; confirm that's really wanted before passing it — it deletes the branch). Either way this returns the session to the original working tree. If kept, the work stays on the worktree's branch, not the original tree's current branch — running `/git-pr` or `/git-ship` from here won't see it; re-enter the worktree (`EnterWorktree` with `path: <worktree path from the earlier confirmation message>`) to continue from there, or work from the branch directly with plain git commands.
+- **If this session entered a worktree in Pre-flight step 5**, ask via `AskUserQuestion`: *"Keep the worktree (review/push/PR from there — recommended) or remove it?"* — then call `ExitWorktree` with `action: "keep"` or `action: "remove"` accordingly (`remove` needs `discard_changes: true` if anything's uncommitted; confirm that's really wanted before passing it — it deletes the branch). Either way this returns the session to the original working tree.
+  - **On `remove`, also explicitly delete the renamed branch** — `git branch -D <the feat/... or fix/... name from step 5>`. Verified this is actually needed, not just cautious: `ExitWorktree`'s own cleanup only reaches the branch under the `worktree-<name>` name it originally created, so after step 5's rename it silently leaves the renamed branch behind on disk. `ExitWorktree` still removes the worktree directory itself correctly either way — it's specifically the now-orphaned branch that needs this extra step.
+  - If kept, the work stays on the worktree's branch, not the original tree's current branch — running `/git-pr` or `/git-ship` from here won't see it; re-enter the worktree (`EnterWorktree` with `path: <worktree path from the earlier confirmation message>`) to continue from there, or work from the branch directly with plain git commands.

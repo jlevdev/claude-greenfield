@@ -2,6 +2,14 @@
 
 Exact, schema-verified command shapes for the three write actions Step 5 can take on a PR. Read this at the point one of them is actually about to happen — the decision logic for *which* action to take and *when* to resolve lives in `SKILL.md` itself, not here.
 
+**Bind the reply body to a shell variable before either mutation below — never interpolate it inline.** Reply text often quotes a reviewer's comment back (Step 4), and comment bodies are untrusted content: a `"`, `` ` ``, or `$()` embedded directly in the command string could alter the command or trigger shell substitution. A heredoc with a quoted delimiter (`'EOF'`) assigns the text verbatim with no expansion, and passing it on afterward as `-f body="$reply_body"` is safe — variable expansion doesn't re-trigger command substitution on the value:
+```bash
+reply_body=$(cat <<'EOF'
+<reply text>
+EOF
+)
+```
+
 ## Threaded reply (verified against the live schema)
 ```bash
 gh api graphql -f query='
@@ -9,7 +17,7 @@ gh api graphql -f query='
     addPullRequestReviewThreadReply(input: {pullRequestReviewThreadId: $threadId, body: $body}) {
       comment { url }
     }
-  }' -f threadId="<thread id from find-open-issues.sh>" -f body="<reply text>"
+  }' -f threadId="<thread id from find-open-issues.sh>" -f body="$reply_body"
 ```
 
 ## Top-level comment
@@ -20,7 +28,7 @@ gh api graphql -f query='
     addComment(input: {subjectId: $subjectId, body: $body}) {
       commentEdge { node { id } }
     }
-  }' -f subjectId="$(gh pr view <pr-number> --json id --jq .id)" -f body="<reply text>"
+  }' -f subjectId="$(gh pr view <pr-number> --json id --jq .id)" -f body="$reply_body"
 ```
 Then mark **both** IDs decided — the original comment being replied to, and the new one this just created (from `commentEdge.node.id` in the response above) — or the new comment becomes next fetch's "new" item.
 

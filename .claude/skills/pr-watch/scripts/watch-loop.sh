@@ -32,12 +32,43 @@ DETAILS_FILE="${5:?usage: watch-loop.sh <pr-number> <owner> <repo> <state-file-p
 
 stable=0
 while true; do
-  ci=$(gh pr checks "$PR_NUM" --json name,bucket 2>/dev/null || echo '[]')
-  pending=$(echo "$ci" | jq -e 'any(.[]; .bucket=="pending")' >/dev/null 2>&1 && echo yes || echo no)
+  # `gh pr checks --json` isn't supported by every gh CLI version in the
+  # wild (confirmed absent on 2.45.0, where it fails with "unknown flag"
+  # and the old `|| echo '[]'` fallback silently read that as "no checks
+  # pending" every single poll). `gh pr view --json statusCheckRollup` is
+  # a stable, broadly-supported field instead. Its entries are a union of
+  # CheckRun (has "status": QUEUED/IN_PROGRESS/COMPLETED/...) and
+  # StatusContext (has "state": PENDING/SUCCESS/ERROR/FAILURE) -- a
+  # CheckRun is pending until COMPLETED, a StatusContext is pending only
+  # while PENDING.
+  ci_json=$(gh pr view "$PR_NUM" --json statusCheckRollup 2>/dev/null)
+  ci_status=$?
 
-  result=$("$SCRIPT_DIR/find-open-issues.sh" "$PR_NUM" "$OWNER" "$REPO" "$STATE_FILE" 2>/dev/null) \
-    || result='{"open_thread_count":0,"new_comment_count":0,"blocking_count":0}'
-  total=$(echo "$result" | jq '.open_thread_count + .new_comment_count + .blocking_count' 2>/dev/null || echo 0)
+  if [[ $ci_status -eq 0 ]] && echo "$ci_json" | jq -e 'has("statusCheckRollup")' >/dev/null 2>&1; then
+    pending=$(echo "$ci_json" | jq -e '
+      any(.statusCheckRollup[]?;
+        if has("status") then .status != "COMPLETED"
+        else (.state // "") == "PENDING"
+        end
+      )' >/dev/null 2>&1 && echo yes || echo no)
+    ci_known=yes
+  else
+    ci_known=no
+  fi
+
+  result=$("$SCRIPT_DIR/find-open-issues.sh" "$PR_NUM" "$OWNER" "$REPO" "$STATE_FILE" 2>/dev/null)
+  fetch_status=$?
+
+  if [[ $fetch_status -eq 0 ]] && echo "$result" | jq -e 'has("open_thread_count")' >/dev/null 2>&1; then
+    total=$(echo "$result" | jq '.open_thread_count + .new_comment_count + .blocking_count' 2>/dev/null || echo 0)
+  else
+    # Failed or unparseable -- this poll is inconclusive, not "nothing
+    # open". Force a retry next tick instead of risking a false SETTLED
+    # (or, if this were read as zero without also blocking settlement,
+    # silently losing real items).
+    ci_known=no
+    total=0
+  fi
 
   if [[ "$total" -gt 0 ]]; then
     echo "$result" > "$DETAILS_FILE"
@@ -45,7 +76,11 @@ while true; do
     exit 0
   fi
 
-  if [[ "$pending" == "no" ]]; then stable=$((stable+1)); else stable=0; fi
+  if [[ "$ci_known" == "yes" && "$pending" == "no" ]]; then
+    stable=$((stable+1))
+  else
+    stable=0
+  fi
   if [[ "$stable" -ge 2 ]]; then
     echo "SETTLED: CI finished, nothing new across 2 consecutive checks"
     exit 0

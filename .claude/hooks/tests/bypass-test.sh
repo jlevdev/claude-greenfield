@@ -396,6 +396,49 @@ else
   BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- unresolvable \$CLAUDE_PROJECT_DIR"
 fi
 
+section "scan-commit-diff.sh -- self-scoping precision [found via pr-watch skill / CodeRabbit review of PR #10, 2026-09-01]"
+# This hook is registered unconditionally on the Bash matcher (the
+# dispatcher's "if" field that used to scope it to git-commit commands
+# false-positives on brace expansion -- see the hook's own header comment
+# and HANDOFF.md), so it self-scopes internally instead: it must recognize
+# an actual `git commit` invocation and ignore everything else, including
+# text that merely *contains* the words "git commit" without running them.
+# Each case here uses an unresolvable $CLAUDE_PROJECT_DIR as a probe: if
+# self-scoping correctly short-circuits before doing any real work, the
+# command is allowed (exit 0) despite the bad project dir; if the command
+# is mistaken for a real commit, it hits the "unresolvable project dir"
+# block above and exits 2 instead.
+
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input "printf '%s\n' 'git commit'")" \
+  | CLAUDE_PROJECT_DIR=/nonexistent-dir-xyz "$HOOKS_DIR/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 0 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] command that only prints the text 'git commit' is not mistaken for one"
+else
+  FALSE_POS=$((FALSE_POS + 1)); echo "  FALSE-POS  [$H] expected allow, got exit $code -- printf 'git commit' (quoted text, not a real commit)"
+fi
+
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input "mkdir -p a/{b,c}/{d,e}")" \
+  | CLAUDE_PROJECT_DIR=/nonexistent-dir-xyz "$HOOKS_DIR/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 0 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] unrelated command with brace expansion is not mistaken for a commit"
+else
+  FALSE_POS=$((FALSE_POS + 1)); echo "  FALSE-POS  [$H] expected allow, got exit $code -- mkdir with brace expansion"
+fi
+
+TOTAL=$((TOTAL + 1))
+echo "$(bash_input 'cd "$CLAUDE_PROJECT_DIR" && git commit -m x')" \
+  | CLAUDE_PROJECT_DIR=/nonexistent-dir-xyz "$HOOKS_DIR/$H" >/dev/null 2>&1
+code=$?
+if [[ "$code" -eq 2 ]]; then
+  PASS=$((PASS + 1)); echo "  PASS       [$H] a real commit chained after && is still recognized"
+else
+  BYPASS=$((BYPASS + 1)); echo "  BYPASS     [$H] expected block, got exit $code -- chained real commit (&&) should still be scanned"
+fi
+
 SCD_NO_PATTERNS=$(mktemp -d)
 git -C "$SCD_NO_PATTERNS" init -q
 git -C "$SCD_NO_PATTERNS" config user.email "test@example.com"

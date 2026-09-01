@@ -119,6 +119,7 @@ Cost tiering: a skill that's read-only, single-shot, and never calls `AskUserQue
 
 | Name | Type | What it does |
 |------|------|-------------|
+| `/init` (this repo) | skill | Scaffolds `project blurb.md`, `templates/`, `tickets/`, `questions/`, `DECISIONS.md`, `CHANGELOG.md`, and a starter `CLAUDE.md` into a downstream project that installed the `cg` plugin. Not meant to be run in this template repo itself — it exists to ship to downstream projects (see "Distributing This Toolkit" below); invoked there as `/cg:init` |
 | `/start-project` | command | Initialize a new project from a blurb — creates PRD, initial tickets, and git repo |
 | `/research` | skill (`.claude/skills/research/`) | Evaluate technology options with prompt-injection awareness and package vetting |
 | `/implement feat-N` | skill (`.claude/skills/implement/`) | Enter TDD implementation mode for one or more tickets |
@@ -152,6 +153,29 @@ Defined in `.claude/agents/`, invoked automatically (by `implement`'s reviewer g
 ### MCP Servers
 
 None configured in the template itself. `/start-project` offers to wire up GitHub (issue/PR management) and Context7 (live docs lookup) once the tech stack and git platform are known — see its "Optional MCP servers" step. When added, servers live in a project-root `.mcp.json` and required environment variables get documented in a `## MCP Servers` section here.
+
+### Distributing This Toolkit
+
+This repo's `.claude/{skills,commands,agents,hooks}` and `templates/` are packaged as the **`cg` Claude Code plugin**, distributed via a self-referencing marketplace also hosted here. This is how downstream projects (created from this template) get updates after their initial setup, instead of manually re-copying files:
+
+- **`.claude-plugin/plugin.json`** — the plugin manifest: `name: "cg"`, a `version`, and pointers at `.claude/skills/`, `.claude/agents/`, `.claude/commands/`, and `.claude/hooks/hooks.json`. That last file mirrors `.claude/settings.json`'s `hooks` block using `${CLAUDE_PLUGIN_ROOT}` in place of `$CLAUDE_PROJECT_DIR` — plugin manifests can't read `settings.json` directly, so the two stay in sync by hand when hooks change. Unlike `skills` (a directory) and `commands` (an array that accepts a directory), the `agents` field rejects a bare directory path — `claude plugin validate` will fail with `agents: Invalid input` unless every agent file is listed individually. **Adding a new file under `.claude/agents/` means adding its path to `plugin.json`'s `agents` array too**, or it won't ship.
+- **`.claude-plugin/marketplace.json`** — lists the one `cg` plugin with `source: "."` (this same repo).
+- **`templates/CLAUDE.md`** — the starter file `/cg:init` copies into a downstream project. It's a deliberate variant of *this* file, not an identical copy — the differences are: everything is invoked with the `cg:` prefix (`/cg:implement`, `/cg:whats-next`, ...) since a downstream project genuinely consumes the plugin, whereas this repo dogfoods `.claude/` directly and keeps unprefixed names; scaffold ownership is attributed to `/cg:init` rather than assumed to already exist; it carries its own downstream-facing "Keeping This Toolkit Updated" section instead of this one's publisher-facing "Distributing This Toolkit"; and it keeps every top placeholder section (`[Project Name]`, Tech Stack, etc.) unfilled, same as this file, for `/cg:start-project` to complete. **When you change the shape of the workflow described in this file** (a new skill, a renamed command, a changed Sprint Flow step), mirror the change into `templates/CLAUDE.md` too, applying that same set of deliberate differences rather than a verbatim copy.
+
+**To publish an update:** edit whatever needs changing under `.claude/` (and `templates/CLAUDE.md` if the workflow itself changed) → bump `version` in `.claude-plugin/plugin.json` → commit and push. Nothing downstream changes automatically.
+
+**Downstream, one-time setup:**
+```shell
+claude plugin marketplace add jlevdev/claude-greenfield
+claude plugin install cg --scope project
+/cg:init
+```
+
+**Downstream, pulling a later update:**
+```shell
+claude plugin update cg@claude-greenfield
+```
+Updates are version-pinned and pulled on request, never silent — a project mid-ticket won't have its skills change underneath it. A project that has locally overridden a skill/command/agent under its own `.claude/` keeps that override; it takes precedence over the plugin's copy of the same name.
 
 ---
 

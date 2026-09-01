@@ -1,0 +1,14 @@
+{
+  "name": "claude-greenfield",
+  "description": "Shared skills, commands, agents, and hooks for projects started from the claude-greenfield template.",
+  "owner": {
+    "name": "James LeVasseur"
+  },
+  "plugins": [
+    {
+      "name": "cg",
+      "source": ".",
+      "description": "Ticket-based PRD workflow: TDD implementation, research, PR review/watch, and reviewer subagents for greenfield projects started from the claude-greenfield template."
+    }
+  ]
+}

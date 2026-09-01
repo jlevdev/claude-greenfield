@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-files.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/protect-files.sh"
           }
         ]
       },
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-secret-reads.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/guard-secret-reads.sh"
           }
         ]
       },
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/case-insensitive-guard.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/case-insensitive-guard.sh"
           }
         ]
       },
@@ -33,23 +33,23 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-dangerous-commands.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/block-dangerous-commands.sh"
           },
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/git-safety.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/git-safety.sh"
           },
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-secret-bash-access.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/guard-secret-bash-access.sh"
           },
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-tests-before-review.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/require-tests-before-review.sh"
           },
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-commit-diff.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-commit-diff.sh"
           }
         ]
       },
@@ -58,7 +58,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/protect-tests.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/protect-tests.sh"
           }
         ]
       }
@@ -69,7 +69,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
           }
         ]
       },
@@ -79,17 +79,17 @@
           {
             "type": "command",
             "if": "Bash(gh pr view:*)",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
           },
           {
             "type": "command",
             "if": "Bash(gh pr diff:*)",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
           },
           {
             "type": "command",
             "if": "Bash(gh api:*)",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
           }
         ]
       }

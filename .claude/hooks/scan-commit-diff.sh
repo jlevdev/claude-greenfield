@@ -1,8 +1,15 @@
 #!/bin/bash
 # Scans the staged diff for known-dangerous code patterns before allowing a
 # `git commit` to proceed. Registered as a PreToolUse hook on the Bash
-# matcher, scoped via the "if" field in .claude/settings.json to
-# `Bash(git commit:*)`. Pattern list lives in lib/dangerous-code-patterns.txt.
+# matcher, unconditionally -- scoping to actual `git commit` commands is done
+# below, internally, rather than via the dispatcher's "if" field. The "if"
+# field ("Bash(git commit:*)") looked like the right tool for this, but its
+# permission-rule matcher false-positives on any Bash command containing
+# brace-expansion syntax (e.g. the init skill's own `mkdir -p a/{b,c}`),
+# regardless of the actual pattern -- confirmed via minimal repro outside
+# this repo, not specific to this hook or to plugin-sourced hooks. See
+# HANDOFF.md for the repro. Self-scoping here removes the dependency on that
+# matcher entirely. Pattern list lives in lib/dangerous-code-patterns.txt.
 #
 # This is the deterministic first layer only -- pattern matching, not a
 # multi-file data-flow trace (that requires actual reasoning, not grep, so
@@ -31,6 +38,21 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PATTERNS_FILE="$SCRIPT_DIR/lib/dangerous-code-patterns.txt"
+
+INPUT=$(cat)
+COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
+
+# Self-scope: only a real `git commit` invocation is this hook's concern.
+# Read above for why this can't be left to the dispatcher's "if" field alone.
+# Anchored to command-start position (start of string, or right after a
+# command separator/subshell opener) rather than a bare substring match --
+# an earlier version of this check matched "git commit" anywhere in the
+# command, including inside quoted text like `printf '%s\n' 'git commit'`,
+# which prints that string rather than running it. Found via CodeRabbit's
+# review of PR #10.
+if ! echo "$COMMAND" | grep -qE '(^|[;&|]+|\$\(|`)[[:space:]]*git[[:space:]]+commit\b'; then
+  exit 0
+fi
 
 if ! cd "$CLAUDE_PROJECT_DIR" 2>/dev/null; then
   echo "Blocked: can't verify this commit is safe -- couldn't resolve the project directory (\$CLAUDE_PROJECT_DIR='$CLAUDE_PROJECT_DIR'). Refusing to allow an unscanned commit; resolve the error and retry." >&2
@@ -69,8 +91,6 @@ _is_exempt_file() {
 # `git diff --cached`. Scan against HEAD (staged + unstaged) instead
 # whenever -a is present, so what's about to actually be committed is what
 # gets checked, not just what happens to already be staged.
-INPUT=$(cat)
-COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 DIFF_REF="--cached"
 if echo "$COMMAND" | grep -qE -- '(^|[[:space:]])-a[a-zA-Z]*([[:space:]]|$)|--all\b'; then
   DIFF_REF="HEAD"

@@ -1,7 +1,14 @@
 #!/bin/bash
 # Runs the project's test suite before a ticket file is allowed to move into
 # a tickets/**/review/ folder. Registered as a PreToolUse hook on Bash,
-# scoped via the "if" field in .claude/settings.json to `mv` and `git mv`.
+# unconditionally -- scoping is done internally below (checking the command
+# for a tickets/**/review/ path) rather than via the dispatcher's "if" field,
+# which previously scoped this to `mv`/`git mv` but false-positives on any
+# Bash command containing brace-expansion syntax. See HANDOFF.md and
+# scan-commit-diff.sh's header comment for the full story; this script
+# already self-scoped before that was found, so no behavior changes here --
+# only the now-redundant "if" fields were removed from settings.json/
+# hooks.json.
 #
 # This makes /implement's "confirm the full test suite still passes" step
 # (see .claude/commands/implement.md) enforced rather than just instructed.

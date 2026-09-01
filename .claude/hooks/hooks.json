@@ -45,17 +45,10 @@
           },
           {
             "type": "command",
-            "if": "Bash(mv *)",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/require-tests-before-review.sh"
           },
           {
             "type": "command",
-            "if": "Bash(git mv *)",
-            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/require-tests-before-review.sh"
-          },
-          {
-            "type": "command",
-            "if": "Bash(git commit:*)",
             "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-commit-diff.sh"
           }
         ]

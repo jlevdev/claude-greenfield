@@ -156,7 +156,7 @@ Invoked automatically (by `implement`'s reviewer gate and/or `pr-review` — see
 
 This project's ticket workflow, skills, commands, and reviewer subagents came from the `cg` Claude Code plugin (`jlevdev/claude-greenfield`), installed via a marketplace add. When the template gets improved upstream, pull those changes into this project explicitly — updates are version-pinned, not automatic:
 
-```
+```shell
 claude plugin update cg@claude-greenfield
 ```
 

@@ -1,0 +1,105 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/protect-files.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/guard-secret-reads.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/case-insensitive-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/block-dangerous-commands.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/git-safety.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/guard-secret-bash-access.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(mv *)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/require-tests-before-review.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git mv *)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/require-tests-before-review.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(git commit:*)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-commit-diff.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/protect-tests.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "WebFetch|WebSearch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(gh pr view:*)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh pr diff:*)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh api:*)",
+            "command": "\"${CLAUDE_PLUGIN_ROOT}\"/.claude/hooks/scan-fetched-content-for-injection.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

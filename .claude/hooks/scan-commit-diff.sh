@@ -44,7 +44,13 @@ COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty')
 
 # Self-scope: only a real `git commit` invocation is this hook's concern.
 # Read above for why this can't be left to the dispatcher's "if" field alone.
-if ! echo "$COMMAND" | grep -qE '\bgit[[:space:]]+commit\b'; then
+# Anchored to command-start position (start of string, or right after a
+# command separator/subshell opener) rather than a bare substring match --
+# an earlier version of this check matched "git commit" anywhere in the
+# command, including inside quoted text like `printf '%s\n' 'git commit'`,
+# which prints that string rather than running it. Found via CodeRabbit's
+# review of PR #10.
+if ! echo "$COMMAND" | grep -qE '(^|[;&|]+|\$\(|`)[[:space:]]*git[[:space:]]+commit\b'; then
   exit 0
 fi
 
